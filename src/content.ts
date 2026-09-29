@@ -189,16 +189,6 @@ export const STORY = [
 /** The Bio's influences (verbatim names). */
 export const INFLUENCES = ['Stephen Stills', 'Jerry Garcia', 'Ray LaMontagne']
 
-/**
- * The band. (Tj Fry, named on the old site and EPK, is no longer affiliated
- * with GJP: he is left out everywhere, including his site.)
- */
-export const BAND = [
-  { name: 'Greg Jones', role: 'Lead', instruments: 'Vocals, Acoustic Guitar', gear: 'acoustic' },
-  { name: 'David Tracey', role: 'Bass Guitar and Vocals', instruments: 'Bass Guitar and Vocals', gear: 'bass' },
-  { name: 'Tom Buckley', role: 'Drums and Vocals', instruments: 'Drums and Vocals', gear: 'drums' },
-]
-
 /** EPK copy, verbatim. */
 export const EPK = {
   headline: 'Bubbling up through the cracks for 2 decades…finally reaching the surface.',
@@ -292,7 +282,6 @@ export const SECTIONS = {
   listen: { eyebrow: 'Listen', title: 'Download the album!' },
   watch: { eyebrow: 'Videos', title: 'Check out the video for House Not Home!' },
   story: { eyebrow: 'Bio', title: 'Bubbling up through the cracks for 2 decades…' },
-  band: { eyebrow: 'The band', title: 'A sound and style that’s all their own.' },
   gear: { eyebrow: 'Gear', title: 'I use the following gear (almost exclusively) on solo shows:' },
   contact: { eyebrow: 'Contact', title: 'Best way to get in touch:' },
 }

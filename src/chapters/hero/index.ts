@@ -811,7 +811,6 @@ export default function create(): Chapter {
       pp.bloomStrength = lerp(lerp(0.22, 0.14, tuneK), 0.42, payK)
       pp.lift = 0.014
       pp.vignette = lerp(0.62, 0.56, payK)
-      pp.grain = 0.035
       pp.warmth = 1
       // no thump in the hero: a quiet room, the first sound is a string
       pp.glitch = 0

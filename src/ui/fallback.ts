@@ -50,7 +50,6 @@ export function renderFallback(root: HTMLElement) {
     ['listen', 'Listen'],
     ['watch', 'Videos'],
     ['story', 'Bio'],
-    ['band', 'Band'],
     ['gear', 'Gear'],
   ]
     .filter(([id]) => has(id))

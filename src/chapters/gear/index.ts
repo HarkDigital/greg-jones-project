@@ -976,7 +976,6 @@ export default function create(): Chapter {
       pp.bloomRadius = 0.5
       pp.vignette = 0.6
       pp.warmth = 1
-      pp.grain = 0.035
       pp.lift = 0.014
       const th = now - thumpAt
       pp.glitch = calm || th < 0 || th > 0.5 ? 0 : 0.14 * (th < 0.04 ? th / 0.04 : Math.exp(-(th - 0.04) / 0.1))

@@ -89,7 +89,7 @@ const BLIP_ROOT = 62
 /** Greg's tuning, low string first (MIDI): D2 A2 D3 G3 B3 D4 */
 export const OPEN_DADGBD = [38, 45, 50, 55, 59, 62]
 /** how present the room tone is in each chapter */
-const ROOM: Record<string, number> = { hero: 1, listen: 0.8, watch: 0.9, story: 0.75, band: 1.05, gear: 0.85, contact: 1.25 }
+const ROOM: Record<string, number> = { hero: 1, listen: 0.8, watch: 0.9, story: 0.75, gear: 0.85, contact: 1.25 }
 /** a chapter must hold this long before the room follows it */
 const SETTLE_S = 0.7
 const CUT_GAP_S = 1.2

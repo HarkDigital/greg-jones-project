@@ -57,7 +57,6 @@ const BUSINESS: Record<string, string> = {
   listen: 'Listen',
   watch: 'Videos',
   story: 'Bio',
-  band: 'Band',
   gear: 'Gear',
   contact: 'Contact',
 }

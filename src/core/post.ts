@@ -16,7 +16,8 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
  * silver-gelatin + blinds; Neon light trails + lights-out; Opal colour field.
  *
  * GJP: a warm photograph of a small room — a tungsten grade (shadows fall to
- * a brown black, highlights go cream), a smoky warm lift, film grain, a deep
+ * a brown black, highlights go cream), a smoky warm lift, heavy film grain and
+ * GRIT (a mottled print, dust specks, the odd hairline scratch), a deep
  * vignette — and THE SOUNDHOLE CUT: approaching a chapter boundary the frame
  * shrinks into the soundhole of an acoustic guitar — the spruce top closes in
  * around it (straight Sitka grain, a ringed rosette with a herringbone band)
@@ -48,7 +49,13 @@ const FinalShader = {
     /** 0..1 the THUMP: a speaker-cone push (radial magnify), no cut */
     uGlitch: { value: 0 },
     uAberration: { value: 0 },
-    uGrain: { value: 0.03 },
+    uGrain: { value: 0.12 },
+    /** 0..1 GRIT: mottled density, dust specks, the odd hairline scratch */
+    uGrit: { value: 1 },
+    /** grain / dust re-deal seed (24 fps; held still when calm) */
+    uGrainSeed: { value: 0 },
+    /** scratch seed (jumps every ~0.7 s); < 0 = no scratches (calm) */
+    uScratchSeed: { value: -1 },
     uVignette: { value: 0.55 },
     /** 0..1 wash to white */
     uFlash: { value: 0 },
@@ -74,6 +81,7 @@ const FinalShader = {
     uniform sampler2D tField;
     uniform vec2 uFieldTexel;
     uniform float uTime, uDpr, uTransition, uGlitch, uAberration, uGrain, uVignette, uFlash, uFade, uSpeedDim, uSat, uLift, uWarmth;
+    uniform float uGrit, uGrainSeed, uScratchSeed;
     uniform vec2 uResolution;
     uniform vec3 uCutColor, uFadeColor, uHaze;
     varying vec2 vUv;
@@ -148,10 +156,12 @@ const FinalShader = {
       vec3 hi = vec3(1.03, 0.98, 0.88);
       vec3 tint = mix(sh, hi, smoothstep(0.05, 0.6, l));
       col *= mix(vec3(1.0), tint, uWarmth);
-      // a gentle S-curve (toe keeps the stage black, shoulder keeps the cream)
+      // a firm S-curve (a gritty print: the toe crushes the blacks a little,
+      // the shoulder keeps the cream)
       col = clamp(col, 0.0, 1.0);
       vec3 s = col * col * (3.0 - 2.0 * col);
-      return mix(col, s, 0.28 * uWarmth);
+      col = mix(col, s, (0.28 + 0.14 * uGrit) * uWarmth);
+      return max(col - 0.006 * uGrit, 0.0) / (1.0 - 0.006 * uGrit);
     }
 
     void main() {
@@ -213,11 +223,48 @@ const FinalShader = {
       col = mix(col, vec3(1.0), clamp(uFlash, 0.0, 1.0));
       float v = 1.0 - smoothstep(0.3, 1.05, length(c * vec2(1.0, 0.92)) * 1.42);
       col *= mix(1.0, 0.42 + 0.58 * v, uVignette);
-      // film grain, strongest in the mids
-      vec2 gp = floor(vUv * uResolution / max(1.0, uDpr));
+      // FILM GRAIN — clumped like real stock (two octaves of noise at ~1.2 and
+      // ~2.6 CSS px), a touch of colour in it, strongest in the mids, and some
+      // tooth left in the shadows. Re-dealt 24x a second; still when calm.
+      float px = max(1.0, uDpr);
+      vec2 g = gl_FragCoord.xy / px;
+      vec2 go = vec2(fract(uGrainSeed * 0.1317) * 173.0, fract(uGrainSeed * 0.2711) * 211.0);
+      // clumps (two octaves) + a crisp per-pixel speck so it reads as grain, not blur
+      float n = (vnoise(g / 1.2 + go) * 0.62 + vnoise(g / 2.6 + go.yx * 1.7) * 0.38 - 0.5) * 0.75
+        + (hash(floor(g) + go) - 0.5) * 0.45;
+      vec3 chroma = vec3(vnoise(g / 1.4 + go + 11.0), vnoise(g / 1.4 + go + 23.0), vnoise(g / 1.4 + go + 37.0)) - 0.5;
       float gl = dot(col, LUM);
-      float gw = 0.6 + 1.6 * gl * (1.0 - gl);
-      col += (hash(gp + fract(floor(uTime * 24.0) * 0.1317) * 97.0) - 0.5) * uGrain * gw;
+      float gw = 0.55 + 2.0 * gl * (1.0 - gl) + 0.6 * (1.0 - smoothstep(0.0, 0.12, gl));
+      col += (vec3(n) * 0.8 + chroma * 0.2) * uGrain * gw * 1.6;
+
+      // GRIT
+      if (uGrit > 0.001) {
+        // an uneven print: static mottled density across the frame
+        vec2 fa = vUv * vec2(aspect, 1.0);
+        float mot = vnoise(fa * 5.0 + 3.7) * 0.6 + vnoise(fa * 16.0 + 9.1) * 0.4;
+        col *= 1.0 + (mot - 0.5) * 0.16 * uGrit;
+        // dust: a few dark and light specks, re-dealt 12x a second
+        vec2 dc = floor(g / 2.4);
+        float ds = floor(uGrainSeed * 0.5);
+        float dh = hash(dc + ds * 17.13);
+        if (dh > 0.99982) {
+          float light = step(0.62, hash(dc + 3.1 + ds));
+          col = mix(col, light > 0.5 ? col + vec3(0.16, 0.14, 0.11) : col * 0.2, 0.75 * uGrit);
+        }
+        // the odd hairline scratch: one or two faint vertical lines that jump
+        // every ~0.7 s (none when calm)
+        if (uScratchSeed >= 0.0) {
+          for (int k = 0; k < 2; k++) {
+            float fk = float(k);
+            float sx = hash(vec2(uScratchSeed, fk * 7.3 + 1.0));
+            float on = step(0.5, hash(vec2(uScratchSeed + 2.0, fk + 0.5)));
+            float dxp = abs(vUv.x - sx) * uResolution.x / px;
+            float line = (1.0 - smoothstep(0.0, 0.8, dxp)) * on;
+            float along = smoothstep(0.35, 0.75, vnoise(vec2(sx * 40.0 + fk, vUv.y * 7.0 + uScratchSeed)));
+            col += line * along * 0.055 * uGrit;
+          }
+        }
+      }
       col = mix(col, uFadeColor, clamp(uFade, 0.0, 1.0));
       gl_FragColor = vec4(col, 1.0);
     }
@@ -233,6 +280,8 @@ export type PostParams = {
   bloomThreshold: number
   aberration: number
   grain: number
+  /** 0..1 grit: mottled print density, dust specks, hairline scratches, firmer contrast */
+  grit: number
   vignette: number
   /** the THUMP 0..1: a speaker-cone push (chapters punch it on a downbeat) */
   glitch: number
@@ -257,7 +306,8 @@ export const POST_DEFAULTS: PostParams = {
   bloomRadius: 0.55,
   bloomThreshold: 0.88,
   aberration: 0,
-  grain: 0.03,
+  grain: 0.12,
+  grit: 1,
   vignette: 0.55,
   glitch: 0,
   flash: 0,
@@ -537,6 +587,11 @@ export class Post {
     u.uGlitch.value = c.glitch
     u.uAberration.value = c.aberration
     u.uGrain.value = c.grain
+    u.uGrit.value = c.grit
+    // grain and dust re-deal at 24 fps; hold still when calm (reduced motion /
+    // Motion off) — and frame time itself freezes with Motion off
+    u.uGrainSeed.value = this.calm ? 0 : Math.floor(time * 24)
+    u.uScratchSeed.value = this.calm ? -1 : Math.floor(time / 0.7)
     u.uVignette.value = c.vignette
     u.uFlash.value = c.flash
     u.uFade.value = this.fade

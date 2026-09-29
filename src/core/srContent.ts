@@ -1,4 +1,4 @@
-import { ALBUMS, ARTIST, BAND, BIO, CONTACT, CREDIT, EPK, GEAR, INFLUENCES, LIVE, SECTIONS, SOCIALS, STORY, VIDEOS, youtubeUrl } from '../content'
+import { ALBUMS, ARTIST, BIO, CONTACT, CREDIT, EPK, GEAR, INFLUENCES, LIVE, SECTIONS, SOCIALS, STORY, VIDEOS, youtubeUrl } from '../content'
 
 /*
  * The accessible layer. Each chapter's copy, as plain linear semantic HTML,
@@ -13,7 +13,6 @@ import { ALBUMS, ARTIST, BAND, BIO, CONTACT, CREDIT, EPK, GEAR, INFLUENCES, LIVE
  *   listen   0–5 Volume ONE tracks · 6 Like a Movie · 7 the live recordings
  *   watch    0–8 VIDEOS in order
  *   story    0–8 STORY beats in order
- *   band     0–2 BAND members · 3–5 EPK happenings
  *   gear     0 the guitar · 1 the tuning · 2–7 GEAR.items · 8 the PA · 9 effects
  *
  * renderFallback() reuses the same builders, visibly, when WebGL2 is missing.
@@ -67,16 +66,6 @@ const COPY: Record<string, () => string> = {
     <ol>${STORY.map((b, i) => `<li><h3>${stop('story', i, `${b.when} · ${b.where}`)}</h3><p>${esc(b.text)}</p></li>`).join('')}</ol>
     <p>Influences: ${INFLUENCES.map(esc).join(', ')}.</p>
     ${BIO.slice(1).map(p => `<p>${esc(p)}</p>`).join('')}`,
-
-  band: () => `
-    <p>${esc(SECTIONS.band.eyebrow)}</p>
-    <h2 tabindex="0">${esc(SECTIONS.band.title)}</h2>
-    <p>${esc(EPK.band)}</p>
-    <ul>${BAND.map((m, i) => `<li>${stop('band', i, m.name)} · ${esc(m.instruments)}</li>`).join('')}</ul>
-    <h3>${esc(EPK.happeningsTitle)}</h3>
-    <p>${esc(EPK.happeningsLead)}</p>
-    <ul>${EPK.happenings.map((h, i) => `<li><h4>${stop('band', BAND.length + i, h.title)}</h4><p>${esc(h.text)}</p><p>${ext(youtubeUrl(h.video), 'Watch on YouTube')}</p></li>`).join('')}</ul>
-    <p>${esc(EPK.closing)}</p>`,
 
   gear: () => `
     <p>${esc(SECTIONS.gear.eyebrow)}</p>

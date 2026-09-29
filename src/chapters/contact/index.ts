@@ -250,7 +250,6 @@ export default function create(): Chapter {
       pp.bloomRadius = 0.5
       pp.bloomThreshold = 1.85
       pp.vignette = lerp(0.6, 0.68, fin)
-      pp.grain = 0.035
       pp.warmth = 1
       pp.lift = 0.013
 

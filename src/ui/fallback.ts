@@ -1,24 +1,23 @@
 import { BRAND, CONTACT, MICROCOPY } from '../content'
-const STATS: { value: string; label: string }[] = []
 import { CHAPTER_COPY_IDS, buildChapterCopy } from '../core/srContent'
 import { CHAPTERS } from '../chapters/index'
-import { CONCEPT_TAG, WORDMARK, markSvg } from './mark'
+import { WORDMARK, markSvg } from './mark'
 import { unmountRotateGate } from './rotate'
 import { releaseInert } from './inert'
 import { releaseScene } from './prefs'
+import { publishTextures } from './texture'
 
 /*
  * The plain HTML version, for browsers without WebGL2 (and the last resort
  * if boot fails or the GPU context is gone for good): every chapter's copy,
- * in story order, visible — set as a TOUR POSTER / SETLIST: one long sheet
- * of aged cream stock gaffer-taped to the black stage wall. Anybody heavy
- * and wide for the headlines (gig-poster caps), the last word of each in the
- * Yellowtail script in oxblood (the headstock logo), Instrument Sans for the
- * words, Spline Sans Mono for the small print. Each chapter is a numbered
- * line of the setlist ("01", its name in script, a marker rule); the
- * services and the process read as the setlist's numbered songs, the quotes
- * as pull quotes, the figures as big poster numerals. The Hark mark stays
- * cream on a black badge (never tinted). The numbers, rules, tape and the
+ * in story order, visible — set as a GIG POSTER / SETLIST: one long sheet
+ * of cream stock taped to the dark wall of the room. Fraunces for the
+ * headlines, the last word of each in the Caveat hand in barn red (a note
+ * on a setlist), Instrument Sans for the words, Spline Sans Mono for the
+ * small print. Each chapter is a numbered line of the setlist ("03", its
+ * name in the hand, a marker rule); numbered lists (the story beats) carry
+ * the setlist's numbers. The GJP monogram sits cream on a little black
+ * headstock badge, as on the guitar. The numbers, rules, tape and the
  * colophon are decorative (aria-hidden or plainly not claims); the copy is
  * the live site's, verbatim, from srContent (buildChapterCopy). Links stay
  * underlined. Nothing here moves. Landmarks: the header (banner, with the
@@ -41,23 +40,33 @@ export function renderFallback(root: HTMLElement) {
   root.style.pointerEvents = 'auto'
   root.inert = false
   root.removeAttribute('aria-hidden')
+  publishTextures(['paper'])
 
   // landmarks: the header (banner) and footer (contentinfo) are <body>'s own
-  // children, around <main> (#track), which holds only the rooms
+  // children, around <main> (#track), which holds only the chapters
   document.querySelectorAll('body > .fb-top, body > .fb-foot').forEach(n => n.remove())
+  const has = (id: string) => CHAPTERS.some(c => c.id === id) && CHAPTER_COPY_IDS.includes(id)
+  const nav = [
+    ['listen', 'Listen'],
+    ['watch', 'Videos'],
+    ['story', 'Bio'],
+    ['band', 'Band'],
+    ['gear', 'Gear'],
+  ]
+    .filter(([id]) => has(id))
+    .map(([id, name]) => `<a href="#${id}">${name}</a>`)
+    .join('')
   const header = document.createElement('header')
   header.className = 'fb-top fb-band'
   header.innerHTML = `
     <i class="fb-tape fb-tape--l" aria-hidden="true"></i><i class="fb-tape fb-tape--r" aria-hidden="true"></i>
     <a class="fb-brand" href="#hero" aria-label="${BRAND.name}, top of the page">
       <span class="fb-mark" aria-hidden="true">${markSvg('fb-mark-svg')}</span>
-      <span class="fb-brand-text" aria-hidden="true">${WORDMARK}${CONCEPT_TAG}</span>
+      <span class="fb-brand-text" aria-hidden="true">${WORDMARK}</span>
     </a>
     <nav class="fb-nav" aria-label="Primary">
-      <a href="#work">Work</a>
-      <a href="#services">Services</a>
-      <a href="#contact">Contact</a>
-      <a class="fb-cta" href="${CONTACT.href}">Get in touch</a>
+      ${nav}
+      <a class="fb-cta" href="${has('contact') ? '#contact' : CONTACT.href}">Get in touch</a>
     </nav>`
   const footer = document.createElement('footer')
   footer.className = 'fb-foot fb-band'
@@ -65,7 +74,7 @@ export function renderFallback(root: HTMLElement) {
   footer.innerHTML = `
     <span class="fb-mark fb-foot-mark" aria-hidden="true">${markSvg('fb-foot-svg')}</span>
     <p class="fb-credit">${MICROCOPY.signalEyebrow}</p>
-    <p class="fb-colophon">Set in Anybody, <em>Yellowtail</em>, Instrument Sans and Spline Sans Mono.</p>
+    <p class="fb-colophon">Set in Fraunces, <em>Caveat</em>, Instrument Sans and Spline Sans Mono.</p>
     <i class="fb-tape fb-tape--b" aria-hidden="true"></i>`
   root.before(header)
   root.after(footer)
@@ -98,8 +107,8 @@ export function renderFallback(root: HTMLElement) {
       span.textContent = a.textContent
       a.replaceWith(span)
     })
-    // "See the work", "Back to top": plain in-page links here (a clone drops
-    // the handler that would steer a story that may be gone)
+    // "Listen", "Get in touch", "Back to top": plain in-page links here (a
+    // clone drops the handler that would steer a story that may be gone)
     copy.querySelectorAll<HTMLAnchorElement>('a[data-land]').forEach(a => {
       const plain = a.cloneNode(true) as HTMLAnchorElement
       plain.removeAttribute('data-land')
@@ -107,15 +116,20 @@ export function renderFallback(root: HTMLElement) {
       a.replaceWith(plain)
     })
     accentHeading(copy)
-    markStats(copy)
-    // the setlist's numbers for numbered lists (the <ol> already says it)
-    copy.querySelectorAll('ol > li > h3').forEach(h => {
-      const li = h.parentElement!
+    // the setlist's numbers for numbered lists — story beats and track
+    // listings (decorative: the <ol> already says it)
+    copy.querySelectorAll('ol > li').forEach(li => {
       const n = document.createElement('span')
       n.className = 'fb-n'
       n.setAttribute('aria-hidden', 'true')
       n.textContent = String([...li.parentElement!.children].indexOf(li) + 1).padStart(2, '0')
-      h.prepend(n)
+      const h = li.querySelector(':scope > h3')
+      if (h) h.prepend(n)
+      else {
+        li.classList.add('fb-track')
+        li.parentElement!.classList.add('fb-tracks')
+        li.prepend(n)
+      }
     })
     const sec = document.createElement('section')
     sec.className = `fb-room fb-room--${id}`
@@ -125,7 +139,7 @@ export function renderFallback(root: HTMLElement) {
       heading.id = `fb-${id}-title`
       sec.setAttribute('aria-labelledby', heading.id)
     }
-    // the setlist line (decorative): "03", then the chapter's name in script
+    // the setlist line (decorative): "03", then the chapter's name in the hand
     const label = CHAPTERS.find(c => c.id === id)?.label
     const wall = document.createElement('p')
     wall.className = 'fb-wall'
@@ -142,9 +156,9 @@ export function renderFallback(root: HTMLElement) {
 }
 
 /**
- * The heading's last word becomes the accent: the Yellowtail script in
- * oxblood ("Say <em>hello.</em>"). Only the markup changes; the heading reads
- * exactly as before.
+ * The heading's last word becomes the accent: the Caveat hand in barn red
+ * ("Greg Jones <em>Project</em>"). Only the markup changes; the heading
+ * reads exactly as before.
  */
 function accentHeading(copy: HTMLElement) {
   const h = copy.querySelector<HTMLElement>('h1, h2')
@@ -156,29 +170,4 @@ function accentHeading(copy: HTMLElement) {
   const em = document.createElement('em')
   em.textContent = m[2]
   h.appendChild(em)
-}
-
-/**
- * The figures (10 years, $1M+, 15, 24/7) are big poster numerals: each one
- * set in a <strong> the CSS styles. Only the markup changes; the words stay
- * the live copy's.
- */
-function markStats(copy: HTMLElement) {
-  for (const n of copy.querySelectorAll<HTMLElement>('p, li')) {
-    const text = n.textContent ?? ''
-    const stat = STATS.find(s => text.startsWith(`${s.value}:`))
-    if (!stat) continue
-    n.classList.add('fb-stat')
-    const head = n.firstChild
-    const fig = document.createElement('strong')
-    fig.textContent = stat.value
-    if (head instanceof HTMLElement && head.textContent === stat.value) head.replaceWith(fig)
-    else if (head?.nodeType === Node.TEXT_NODE) {
-      head.textContent = (head.textContent ?? '').slice(stat.value.length)
-      n.insertBefore(fig, head)
-    } else continue
-    // the figure sits on its own line: drop the ": " that joined it to its label
-    const rest = fig.nextSibling
-    if (rest?.nodeType === Node.TEXT_NODE) rest.textContent = (rest.textContent ?? '').replace(/^\s*:\s*/, '')
-  }
 }

@@ -162,7 +162,7 @@ export const BIO = [
   'Between his husky voice, precise guitar playing and down-to-earth presence, Greg Jones generates a connective musical experience that hangs in the balance of an intimate improv jazz session, a groove-filled jam show and a chill coffee shop concert.',
   'The singer songwriter originally from Levittown, NY, on Long Island then transplanted to Massapequa at the age of 9 started with formal piano training until age 14 and taught himself how to play guitar by watching hair metal videos on MTV. But Jones’ musical journey distinctly began one Saturday morning in 1977 during a PBS channel plea for public funding, when a clip of Otis Redding and his Blue Suit flashed across the screen as a voiceover introducing the evening program selection as 1967’s Monterey Pop Festival. Everything else vanished, time stood still, and Jones knew: “That’s what I want to do for my job!”',
   'Influenced by artists including Stephen Stills, Jerry Garcia and Ray LaMontagne, Jones has been writing, performing and working his way up through the musical cracks of notoriety for over two decades. Whether performing in front of five people at a local tavern (waitstaff included) in Southern New Jersey, on stage at WXPN’s World Cafe Live in Philadelphia, PA and Wilmington, DE or at festivals in front of thousands, Jones’ intention never varies. He plays just as hard and sweats just as much, infusing every person present with a sonic dose of emotional energy to make the hair stand up on the backs of their necks.',
-  'Jones has developed a loyal following in South Jersey, where he moved with his wife Dena in 2001 to be closer to her family and start their own. He has since been focused on being an awesome dad to his two daughters So(Phee)a and Margot and played shows only once or twice a year to satiate the craving to perform live music. As the girls have naturally grown less dependent on him, Jones itch to play has surged to the surface. With a wide network already established from working in real estate, the supremely social musician has solidified a serious schedule of shows nearly every night at locales throughout the tri-state area whether it be solo, as a Duo with his good friend Tj Fry (www.tjfry.com) or with his full backing band behind him consisting of Local hero’s Dave Tracey on the Bass and Tom Buckley on the Drums (both offering killer harmony vocals!).',
+  'Jones has developed a loyal following in South Jersey, where he moved with his wife Dena in 2001 to be closer to her family and start their own. He has since been focused on being an awesome dad to his two daughters So(Phee)a and Margot and played shows only once or twice a year to satiate the craving to perform live music. As the girls have naturally grown less dependent on him, Jones itch to play has surged to the surface. With a wide network already established from working in real estate, the supremely social musician has solidified a serious schedule of shows nearly every night at locales throughout the tri-state area whether it be solo or with his full backing band behind him consisting of Local hero’s Dave Tracey on the Bass and Tom Buckley on the Drums (both offering killer harmony vocals!).',
   'Since the release of his debut album Like a Movie in 1999, Jones has written dozens of songs that he has been longing to record. Fast forward to NOW,  Greg Jones completed his first Official Studio Release. It’s available for you to enjoy!',
 ]
 
@@ -189,10 +189,12 @@ export const STORY = [
 /** The Bio's influences (verbatim names). */
 export const INFLUENCES = ['Stephen Stills', 'Jerry Garcia', 'Ray LaMontagne']
 
-/** The quartet (EPK). */
+/**
+ * The band. (Tj Fry, named on the old site and EPK, is no longer affiliated
+ * with GJP: he is left out everywhere, including his site.)
+ */
 export const BAND = [
   { name: 'Greg Jones', role: 'Lead', instruments: 'Vocals, Acoustic Guitar', gear: 'acoustic' },
-  { name: 'Tj Fry', role: 'Mandolin/Electric Guitars and Vocals', instruments: 'Mandolin/Electric Guitars and Vocals', gear: 'mandolin', url: 'https://www.tjfry.com' },
   { name: 'David Tracey', role: 'Bass Guitar and Vocals', instruments: 'Bass Guitar and Vocals', gear: 'bass' },
   { name: 'Tom Buckley', role: 'Drums and Vocals', instruments: 'Drums and Vocals', gear: 'drums' },
 ]
@@ -200,7 +202,8 @@ export const BAND = [
 /** EPK copy, verbatim. */
 export const EPK = {
   headline: 'Bubbling up through the cracks for 2 decades…finally reaching the surface.',
-  band: 'Adding the right players to elevate Greg’s songs above and beyond the traditional Singer/Songwriter format was crucial.  With Tj Fry on Mandolin/Electric Guitars and Vocals, David Tracey on Bass Guitar and Vocals and Tom Buckley on Drums and Vocals, this Quartet lead by Greg has a sound and style that’s all their own, together forming gregjonesproject.  GJP have amassed a dedicated following, who eagerly anticipated the release of their first official studio release in late 2016 entitled simply “Volume ONE” which is currently receiving both fan and critical acclaim.',
+  // the EPK paragraph minus the sentence that named the old lineup (Tj Fry is no longer affiliated)
+  band: 'Adding the right players to elevate Greg’s songs above and beyond the traditional Singer/Songwriter format was crucial.  GJP have amassed a dedicated following, who eagerly anticipated the release of their first official studio release in late 2016 entitled simply “Volume ONE” which is currently receiving both fan and critical acclaim.',
   happeningsTitle: 'CURRENT HAPPENINGS',
   happeningsLead: 'Greg Jones Project has been gaining some much deserved notoriety as of late and it’s easy to see why!',
   happenings: [

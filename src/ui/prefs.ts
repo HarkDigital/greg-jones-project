@@ -5,9 +5,9 @@
  * Motion: the visitor's Motion switch (engine.motion + html.motion-off). It
  * starts Off under prefers-reduced-motion and remembers the visitor's choice
  * (localStorage, try/catch: blocked storage just means "this visit only").
- * The keys carry the concept's slug: every concept shares one origin
- * (harkdigital.github.io), and a choice made on another picture shouldn't
- * leak into this one.
+ * The keys carry the site's slug: several sites can share one origin (one
+ * GitHub Pages account), and a choice made on another site shouldn't leak
+ * into this one.
  *
  * Scene holds: the phone-landscape rotate card and the (opaque) mobile menu
  * both cover the picture; while either is up the engine skips rendering. Two

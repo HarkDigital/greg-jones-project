@@ -13,7 +13,7 @@ import { ALBUMS, ARTIST, BAND, BIO, CONTACT, CREDIT, EPK, GEAR, INFLUENCES, LIVE
  *   listen   0–5 Volume ONE tracks · 6 Like a Movie · 7 the live recordings
  *   watch    0–8 VIDEOS in order
  *   story    0–8 STORY beats in order
- *   band     0–3 BAND members · 4–6 EPK happenings
+ *   band     0–2 BAND members · 3–5 EPK happenings
  *   gear     0 the guitar · 1 the tuning · 2–7 GEAR.items · 8 the PA · 9 effects
  *
  * renderFallback() reuses the same builders, visibly, when WebGL2 is missing.
@@ -58,7 +58,8 @@ const COPY: Record<string, () => string> = {
     <ul>${VIDEOS.map(
       (v, i) =>
         `<li>${ext(youtubeUrl(v.id), `${v.title}${v.by ? ` (${v.by})` : ''} · ${v.kind} · watch on YouTube`, i)}${v.note ? `<p>${esc(v.note)}</p>` : ''}</li>`,
-    ).join('')}</ul>`,
+    ).join('')}</ul>
+    <p>${ext(SOCIALS.find(s => s.name === 'YouTube')!.url, 'YouTube channel')}</p>`,
 
   story: () => `
     <p>${esc(SECTIONS.story.eyebrow)}</p>
@@ -74,7 +75,7 @@ const COPY: Record<string, () => string> = {
     <ul>${BAND.map((m, i) => `<li>${stop('band', i, m.name)} · ${esc(m.instruments)}</li>`).join('')}</ul>
     <h3>${esc(EPK.happeningsTitle)}</h3>
     <p>${esc(EPK.happeningsLead)}</p>
-    <ul>${EPK.happenings.map((h, i) => `<li><h4>${stop('band', 4 + i, h.title)}</h4><p>${esc(h.text)}</p><p>${ext(youtubeUrl(h.video), 'Watch on YouTube')}</p></li>`).join('')}</ul>
+    <ul>${EPK.happenings.map((h, i) => `<li><h4>${stop('band', BAND.length + i, h.title)}</h4><p>${esc(h.text)}</p><p>${ext(youtubeUrl(h.video), 'Watch on YouTube')}</p></li>`).join('')}</ul>
     <p>${esc(EPK.closing)}</p>`,
 
   gear: () => `
@@ -98,6 +99,7 @@ const COPY: Record<string, () => string> = {
     <p>${ext(CONTACT.tourUrl, CONTACT.tour)}</p>
     <p>${ext(ARTIST.epk, CONTACT.epkLabel)}</p>
     <p>${SOCIALS.map(s => ext(s.url, s.name)).join(' · ')}</p>
+    <p>${esc(EPK.closing)}</p>
     <p>© ${new Date().getFullYear()} ${esc(ARTIST.name)}. · ${ext(CREDIT.url, CREDIT.text)}</p>
     <p><a href="#hero" data-land="hero">Back to top</a></p>`,
 }

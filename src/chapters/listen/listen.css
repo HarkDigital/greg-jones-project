@@ -1,0 +1,532 @@
+/* LISTEN · Two-Inch Tape — chapter-scoped layout (prefix .ls-) */
+
+/* the intro: eyebrow + headline top-left over the dark room */
+.ls-intro {
+  position: absolute;
+  left: var(--gutter);
+  top: calc(var(--safe-top) + 2.5vh);
+  max-width: min(620px, 46vw);
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  pointer-events: none;
+}
+/* a soft scrim of the room's dark behind the words: string lights or a lit
+   prop that drifts behind the headline never cost it contrast */
+.ls-intro {
+  isolation: isolate;
+}
+.ls-intro::before {
+  content: '';
+  position: absolute;
+  inset: -48px -72px -48px -56px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(12, 8, 6, 0.78) 40%, rgba(12, 8, 6, 0) 100%);
+  pointer-events: none;
+}
+.ls-head {
+  font-size: clamp(2.6rem, 5.4vw, 5.4rem);
+  max-width: 7.2em;
+}
+.ls-sub {
+  color: var(--fg-muted);
+}
+
+/* the cards: opaque dark walnut plates on the left, centred in the band
+   between the chrome */
+.ls-card {
+  position: absolute;
+  left: var(--gutter);
+  top: calc(var(--safe-top) + (100% - var(--safe-top) - var(--safe-bottom)) / 2);
+  transform: translateY(-50%);
+  width: min(410px, 33vw);
+  max-height: calc(100% - var(--safe-top) - var(--safe-bottom));
+  display: grid;
+  justify-items: stretch;
+  align-content: start;
+  gap: 12px;
+  padding: 20px 22px 20px;
+  background: rgba(14, 9, 6, 0.95);
+}
+
+.ls-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.ls-kicker {
+  margin: 0;
+  color: var(--fg-muted);
+}
+.ls-count {
+  margin: 0;
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+.ls-count b {
+  font-weight: 600;
+  color: var(--amber-hot);
+}
+
+/* the song that's up: all six stacked in one grid cell, cross-faded */
+.ls-now-stack {
+  display: grid;
+}
+.ls-now {
+  grid-area: 1 / 1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  column-gap: 14px;
+  min-width: 0;
+}
+.ls-num {
+  font-size: 2.4rem;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ls-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 580;
+  font-variation-settings: 'opsz' 72, 'SOFT' 60;
+  font-size: clamp(1.5rem, 2.1vw, 2.05rem);
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  color: var(--paper);
+  text-wrap: balance;
+  min-width: 0;
+}
+.ls-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the running order: six rows, the song that's up lit (clickable: lands on it) */
+.ls-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1px;
+}
+.ls-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.6em 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 8px 3px 6px;
+  margin: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
+}
+span.ls-row {
+  cursor: default;
+}
+.ls-row-n,
+.ls-row-d {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+.ls-row-n {
+  text-align: right;
+}
+button.ls-row:hover,
+button.ls-row:focus-visible {
+  color: var(--paper);
+  background: rgba(244, 232, 210, 0.06);
+}
+.ls-list li.is-on .ls-row {
+  color: var(--paper);
+  background: rgba(234, 166, 78, 0.14);
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+.ls-list li.is-on .ls-row-n,
+.ls-list li.is-on .ls-row-d {
+  color: var(--amber-hot);
+}
+
+.ls-notes,
+.ls-avail,
+.ls-lede {
+  max-width: none;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ls-avail {
+  margin-top: -4px;
+}
+
+/* store / stream links: compact plates, two by two */
+.ls-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.ls-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--paper);
+  background: rgba(244, 232, 210, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.ls-link:first-child {
+  color: var(--ink);
+  background: linear-gradient(180deg, #fbefd4 0%, #ecd3a0 55%, #dcb676 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.ls-link:hover,
+.ls-link:focus-visible {
+  background: rgba(244, 232, 210, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(244, 232, 210, 0.8);
+}
+.ls-link:first-child:hover,
+.ls-link:first-child:focus-visible {
+  background: linear-gradient(180deg, #fff6e2 0%, #f3dcaa 55%, #e4c083 100%);
+}
+.ls-arrow {
+  font-family: var(--font-mono);
+  opacity: 0.85;
+}
+
+/* "Physical CD's…": a note in marker on a strip of masking tape */
+.ls-cd {
+  justify-self: start;
+  margin: 2px 0 0 -2px;
+  padding: 4px 14px 3px;
+  font-family: var(--font-script);
+  font-weight: 640;
+  font-size: 1.32rem;
+  line-height: 1.1;
+  color: #1b1410;
+  background:
+    repeating-linear-gradient(0deg, rgba(140, 110, 70, 0.07) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #efe0bb 0%, #e2cf9f 100%);
+  transform: rotate(-1.2deg);
+  clip-path: polygon(1% 0, 99% 2%, 100% 30%, 98.8% 62%, 100% 100%, 0.6% 98%, 0 64%, 1.4% 32%);
+}
+
+/* Like a Movie */
+.ls-title--big {
+  font-size: clamp(1.9rem, 2.8vw, 2.7rem);
+  font-style: italic;
+  font-variation-settings: 'opsz' 96, 'SOFT' 80;
+}
+.ls-lede {
+  margin-top: -6px;
+}
+.ls-list--two {
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(6, auto);
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.ls-list--two .ls-row {
+  font-size: 13.5px;
+  padding: 2px 4px 2px 0;
+  gap: 7px;
+}
+.ls-movie .ls-links,
+.ls-live .ls-links {
+  grid-template-columns: 1fr;
+}
+.ls-movie .ls-link {
+  justify-self: start;
+  min-width: 200px;
+}
+
+/* the live tape: three tracks, click to play (never autoplay) */
+.ls-title--long {
+  font-size: clamp(1.25rem, 1.7vw, 1.6rem);
+  line-height: 1.12;
+}
+.ls-tracks {
+  margin: 0;
+  padding: 10px 0 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+}
+.ls-track {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.ls-play {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: linear-gradient(180deg, #fbefd4 0%, #ecd3a0 55%, #dcb676 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 14px rgba(242, 163, 58, 0.22);
+}
+.ls-play:hover,
+.ls-play:focus-visible {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 6px 20px rgba(242, 163, 58, 0.4);
+}
+/* ▶ (a CSS triangle) / ❚❚ while playing */
+.ls-play-i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  margin: -7px 0 0 -4px;
+  border-style: solid;
+  border-width: 7px 0 7px 12px;
+  border-color: transparent transparent transparent var(--ink);
+}
+.ls-track.is-playing .ls-play-i {
+  margin: -7px 0 0 -6px;
+  width: 12px;
+  height: 14px;
+  border: 0;
+  background: linear-gradient(90deg, var(--ink) 0 4px, transparent 4px 8px, var(--ink) 8px 12px);
+}
+.ls-track.is-loading .ls-play-i {
+  opacity: 0.5;
+}
+.ls-track-b {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.ls-track-a {
+  color: var(--paper);
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.3;
+  text-underline-offset: 3px;
+}
+.ls-track-a:hover,
+.ls-track-a:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--signal);
+}
+.ls-track-a .ls-arrow {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.ls-bar {
+  display: block;
+  height: 2px;
+  background: rgba(244, 232, 210, 0.14);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ls-bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--signal);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--k, 0));
+}
+.ls-track.is-error .ls-bar {
+  background: rgba(180, 67, 47, 0.6);
+}
+
+/* shorter landscape screens: the running order goes, the notes tighten */
+@media (orientation: landscape) and (max-height: 820px) {
+  .ls-album .ls-list {
+    display: none;
+  }
+}
+@media (orientation: landscape) and (max-width: 1100px) {
+  .ls-card {
+    width: min(380px, 38vw);
+  }
+  .ls-cd {
+    font-size: 1.12rem;
+  }
+}
+
+/* portrait (phones, tablets upright): the headline up top, the card in the bottom band */
+@media (orientation: portrait) {
+  .ls-intro {
+    right: var(--gutter);
+    max-width: none;
+    top: var(--safe-top);
+    gap: 12px;
+  }
+  .ls-head {
+    font-size: clamp(2.6rem, 11vw, 4.8rem);
+    max-width: none;
+  }
+  .ls-card {
+    top: auto;
+    bottom: var(--safe-bottom);
+    right: var(--gutter);
+    width: auto;
+    max-width: 640px;
+    transform: none;
+    gap: 10px;
+    padding: 16px 18px;
+  }
+  .ls-album .ls-list {
+    display: none;
+  }
+}
+@media (orientation: portrait) and (min-width: 700px) {
+  .ls-card {
+    left: 50%;
+    right: auto;
+    width: min(620px, calc(100vw - 2 * var(--gutter)));
+    transform: translateX(-50%);
+  }
+}
+@media (max-width: 560px) {
+  .ls-num {
+    font-size: 1.9rem;
+  }
+  .ls-title {
+    font-size: clamp(1.35rem, 6vw, 1.7rem);
+  }
+  .ls-notes,
+  .ls-avail,
+  .ls-lede {
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  .ls-link {
+    padding: 8px 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+  .ls-cd {
+    font-size: 1.18rem;
+  }
+  .ls-list--two .ls-row {
+    font-size: 12.5px;
+  }
+  .ls-title--long {
+    font-size: 1.15rem;
+  }
+}
+@media (orientation: portrait) and (max-height: 740px) {
+  .ls-avail {
+    display: none;
+  }
+  .ls-card {
+    gap: 8px;
+    padding: 13px 15px;
+  }
+}
+
+/* short landscape (a phone sideways, 200% zoom): compact plates between the thin chrome bands */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ls-intro {
+    gap: 8px;
+    max-width: 50vw;
+    top: calc(var(--safe-top) + 6px);
+  }
+  .ls-head {
+    font-size: clamp(1.9rem, 5vw, 2.8rem);
+  }
+  .ls-card {
+    width: min(360px, 44vw);
+    gap: 6px;
+    padding: 10px 14px 11px;
+    overflow: hidden;
+  }
+  .ls-top {
+    padding-bottom: 5px;
+  }
+  .ls-num {
+    font-size: 1.5rem;
+  }
+  .ls-title {
+    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  }
+  .ls-notes,
+  .ls-avail,
+  .ls-lede {
+    font-size: 12px;
+    line-height: 1.38;
+  }
+  .ls-avail {
+    display: none;
+  }
+  .ls-links {
+    grid-template-columns: repeat(4, auto);
+    gap: 4px;
+  }
+  .ls-link {
+    padding: 5px 7px;
+    font-size: 9.5px;
+    letter-spacing: 0.04em;
+    gap: 4px;
+  }
+  .ls-cd {
+    font-size: 1rem;
+    padding: 2px 10px 1px;
+  }
+  .ls-title--big {
+    font-size: 1.5rem;
+  }
+  .ls-list--two .ls-row {
+    font-size: 11.5px;
+    padding: 0 4px 0 0;
+    line-height: 1.25;
+  }
+  .ls-title--long {
+    font-size: 1rem;
+  }
+  .ls-tracks {
+    gap: 4px;
+    padding-top: 6px;
+  }
+  .ls-play {
+    width: 30px;
+    height: 30px;
+  }
+  .ls-track-a {
+    font-size: 12.5px;
+  }
+}

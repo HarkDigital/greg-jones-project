@@ -226,7 +226,7 @@ a {
   line-height: 1.5;
 }
 
-/* eyebrow: a jewel pilot lamp, then the label (amp-panel caps) */
+/* eyebrow: a little warm bulb, then the label in mono caps */
 .hud-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -518,11 +518,11 @@ a {
 }
 .rise.is-in .rise-w > span {
   opacity: 1;
-  animation: riff-pluck 0.62s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation: gjp-pluck 0.62s cubic-bezier(0.2, 0.7, 0.3, 1) both;
   animation-delay: calc(var(--i, 0) * 42ms);
   transition: none;
 }
-@keyframes riff-pluck {
+@keyframes gjp-pluck {
   0% {
     opacity: 0;
     transform: translate3d(0, -0.32em, 0) scaleY(1.08);

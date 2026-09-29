@@ -4,18 +4,15 @@ import { storeKey } from './prefs'
 import { publishTextures } from './texture'
 
 /*
- * Phone-landscape suggestion — RIFF: a ROAD CASE in the follow spot. The
- * card is a flight-case lid: black pebbled laminate inside an aluminium
- * extrusion, chrome ball corners, a butterfly latch on the front edge. On
- * the lid, spray-stencilled in cream, the shipping symbol THIS WAY UP (two
- * arrows over a bar) above a stencilled phone that turns upright ONCE, so
- * it comes to rest under the arrows (never a loop; simply upright under
- * reduced motion / Motion off). Beside it: "Turn your phone upright"
- * (Anybody, heavy and wide; "upright" is the Yellowtail script), "This stage
- * is set for portrait." and "Continue anyway" (the cream-gold plate). The
- * scene is paused underneath (createChrome wires onChange to the scene
- * hold). Tablets and laptops in landscape are taller than 500px and never
- * see it.
+ * Phone-landscape suggestion — GREG JONES PROJECT: a SETLIST TAPED UP in the
+ * dark room. The card is a sheet of cream stock held by two strips of
+ * masking tape, in the lamp's pool: a phone drawn in marker, turning upright
+ * ONCE under a barn-red arrow (never a loop; simply upright under reduced
+ * motion / Motion off). Beside it: "Turn your phone upright" (Fraunces;
+ * "upright" is the Caveat hand), "This stage is set for portrait." and
+ * "Continue anyway" (an ink plate). The scene is paused underneath
+ * (createChrome wires onChange to the scene hold). Tablets and laptops in
+ * landscape are taller than 500px and never see it.
  *
  * It is a suggestion, never a lock (WCAG 1.3.4): "Continue anyway" (or
  * Escape, as a dialog promises) releases it for the rest of the session. It
@@ -49,23 +46,18 @@ const rememberDismissed = () => {
   }
 }
 
-/* the stencil (0..110 × 0..132): THIS WAY UP over a phone; stencil bridges
-   are the gaps in the phone's outline. Painted twice: a soft overspray, then
-   the crisp paint. */
-const PAINT = `
-  <g class="rot-arrows">
-    <path d="M40 40V15M31 23.5l9-9.5 9 9.5M70 40V15M61 23.5l9-9.5 9 9.5"/>
-    <path d="M28 47h54"/>
+/* the drawing (0..110 × 0..132): a phone in marker under a curved arrow; the
+   phone turns upright once (.rot-phone rotates about its centre) */
+const ART = `<svg class="rot-draw" viewBox="0 0 110 132" aria-hidden="true" focusable="false">
+  <g class="rot-arrow">
+    <path d="M22 60C19 34 38 15 64 16c12 .4 22 5 29 13"/>
+    <path d="M94.5 15.5l-1 14.2-13.8-2.6"/>
   </g>
   <g class="rot-phone">
-    <rect x="33" y="60" width="44" height="68" rx="8" stroke-dasharray="101.2 4" stroke-dashoffset="36.6"/>
-    <path d="M48 67h14"/>
-    <circle cx="55" cy="120" r="2.6" class="rot-dot"/>
-  </g>`
-const ART = `<svg class="rot-stencil" viewBox="0 0 110 132" aria-hidden="true" focusable="false">
-  <defs><filter id="rot-spray" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="1.6"/></filter></defs>
-  <g class="rot-over" filter="url(#rot-spray)">${PAINT}</g>
-  <g class="rot-paint">${PAINT}</g>
+    <rect x="36" y="54" width="44" height="68" rx="8.5"/>
+    <path d="M51 61.5h14"/>
+    <circle cx="58" cy="113.5" r="2.8" class="rot-dot"/>
+  </g>
 </svg>`
 
 let gate: {
@@ -87,8 +79,8 @@ export function mountRotateGate(onChange?: (shown: boolean) => void) {
   }
   if (typeof matchMedia === 'undefined') return
   let dismissed = wasDismissed()
-  // the case's laminate grain
-  publishTextures(['tolex'])
+  // the sheet's cream stock
+  publishTextures(['paper'])
   const el = document.createElement('div')
   el.className = 'rot'
   // non-modal: the copy layer behind it stays in reach
@@ -97,19 +89,15 @@ export function mountRotateGate(onChange?: (shown: boolean) => void) {
   el.setAttribute('aria-describedby', 'rot-sub')
   el.tabIndex = -1
   el.innerHTML = `
-    <div class="rot-case">
-      <div class="rot-lid">
-        <div class="rot-art" aria-hidden="true">${ART}</div>
-        <div class="rot-text">
-          <p class="rot-k" aria-hidden="true">${MICROCOPY.signalEyebrow}</p>
-          <h2 class="rot-title" id="rot-title">Turn your phone <em>upright</em></h2>
-          <p class="rot-sub" id="rot-sub">This stage is set for portrait.</p>
-          <p class="rot-actions"><button class="hud-btn rot-go" type="button">Continue anyway</button></p>
-        </div>
+    <div class="rot-card">
+      <i class="rot-tape rot-tape--l" aria-hidden="true"></i><i class="rot-tape rot-tape--r" aria-hidden="true"></i>
+      <div class="rot-art" aria-hidden="true">${ART}</div>
+      <div class="rot-text">
+        <p class="rot-k" aria-hidden="true">${MICROCOPY.signalEyebrow}</p>
+        <h2 class="rot-title" id="rot-title">Turn your phone <em>upright</em></h2>
+        <p class="rot-sub" id="rot-sub">This stage is set for portrait.</p>
+        <p class="rot-actions"><button class="hud-btn rot-go" type="button">Continue anyway</button></p>
       </div>
-      <i class="rot-ball rot-ball--tl" aria-hidden="true"></i><i class="rot-ball rot-ball--tr" aria-hidden="true"></i>
-      <i class="rot-ball rot-ball--bl" aria-hidden="true"></i><i class="rot-ball rot-ball--br" aria-hidden="true"></i>
-      <i class="rot-latch" aria-hidden="true"></i>
     </div>
     <p class="sr-only" aria-live="assertive" data-rot-live></p>`
   // right after the skip link: Tab goes skip link → this card → the page

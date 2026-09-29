@@ -1,28 +1,24 @@
 /*
- * Small procedural tiles for the DOM layer (loader, menu, rotate card),
- * drawn once on tiny canvases and handed to CSS as data URLs — the same
- * materials the 3D stage is made of, so the UI and the scene share one
- * visual language:
+ * Small procedural tiles for the DOM layer (the chrome's plates, the menu,
+ * the rotate card, the fallback), drawn once on tiny canvases and handed to
+ * CSS as data URLs — the woods and papers of the room, so the UI and the 3D
+ * stage share one language:
  *
- *   weave()   BASKETWEAVE GRILLE CLOTH, woven on the diagonal — the exact
- *             weave of kit/materials.ts grilleMap() and of the cab cut in
- *             core/post.ts (8 cells across a tile, three threads a cell,
- *             each thread diving under its neighbour). `lit` draws the
- *             threads white on black (a multiply layer: whatever glows
- *             behind it shows through the threads); `wheat` draws the
- *             gold-wheat cloth itself.
- *   tolex()   the fine pebble grain of black amp tolex / road-case laminate
- *             (a transparent speckle to lay over a flat dark colour).
+ *   walnut()  dark WALNUT grain for the chrome's plates: long, gently
+ *             wandering grain lines and fine pores, as a transparent overlay
+ *             (dark lines, a faint warm sheen) on a flat dark-wood colour.
+ *   paper()   CREAM STOCK: the fibre and speckle of an uncoated gig poster /
+ *             setlist sheet, as a transparent overlay on a flat cream.
  *
- * Cost: a 128² tile is ~16k pixel writes, well under a millisecond; each
- * tile is built once per page (cached) and only when a caller asks for it.
- * Blocked canvases (privacy modes) just return '' and the CSS falls back
- * to its flat colour.
+ * Every tile wraps seamlessly (periodic noise lattices). Cost: a 128² tile is
+ * ~16k pixel writes, well under a millisecond; each is built once per page
+ * (cached) and only when a caller asks. Blocked canvases (privacy modes)
+ * return '' and the CSS falls back to its flat colour.
  */
 
 const cache = new Map<string, string>()
 
-/** a tiny seeded PRNG, so the cloth is the same on every visit */
+/** a tiny seeded PRNG, so the grain is the same on every visit */
 function rng(seed: number) {
   let s = seed >>> 0 || 1
   return () => {
@@ -31,18 +27,45 @@ function rng(seed: number) {
   }
 }
 
-function paint(key: string, size: number, draw: (img: ImageData, size: number) => void) {
+/** periodic value noise over a gx × gy lattice (wraps at the tile's edges) */
+function field(r: () => number, gx: number, gy: number) {
+  const lattice = Array.from({ length: gx * gy }, () => r())
+  const at = (ix: number, iy: number) => lattice[(((iy % gy) + gy) % gy) * gx + (((ix % gx) + gx) % gx)]
+  return (u: number, v: number) => {
+    const fx = u * gx
+    const fy = v * gy
+    const ix = Math.floor(fx)
+    const iy = Math.floor(fy)
+    let tx = fx - ix
+    let ty = fy - iy
+    tx = tx * tx * (3 - 2 * tx)
+    ty = ty * ty * (3 - 2 * ty)
+    const a = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * tx
+    const b = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * tx
+    return a + (b - a) * ty
+  }
+}
+
+function paint(
+  key: string,
+  w: number,
+  h: number,
+  draw: (d: Uint8ClampedArray, w: number, h: number) => void,
+  after?: (g: CanvasRenderingContext2D, w: number, h: number) => void,
+) {
   const hit = cache.get(key)
   if (hit != null) return hit
   let url = ''
   try {
     const c = document.createElement('canvas')
-    c.width = c.height = size
+    c.width = w
+    c.height = h
     const g = c.getContext('2d')
     if (g) {
-      const img = g.createImageData(size, size)
-      draw(img, size)
+      const img = g.createImageData(w, h)
+      draw(img.data, w, h)
       g.putImageData(img, 0, 0)
+      after?.(g, w, h)
       url = c.toDataURL('image/png')
     }
   } catch {
@@ -53,112 +76,132 @@ function paint(key: string, size: number, draw: (img: ImageData, size: number) =
 }
 
 /**
- * Basketweave grille cloth (the kit's weave). `lit`: white threads on black
- * (for mix-blend-mode: multiply over a glow); `wheat`: the gold-wheat cloth.
+ * Walnut: grain lines running along x, wandering on a slow field, with fine
+ * pores stretched along the grain. Dark (multiply-like black at low alpha)
+ * for the late wood, a faint warm sheen between. Meant at 128 x 64 CSS px.
  */
-export function weave(kind: 'lit' | 'wheat' = 'lit', size = 128) {
-  const col = kind === 'wheat' ? [206, 164, 104] : [255, 255, 255]
-  const base = kind === 'wheat' ? [5, 4, 3] : [0, 0, 0]
-  return paint(`weave-${kind}-${size}`, size, (img, w) => {
-    const r = rng(kind.length * 7 + 3)
-    const tone: number[] = Array.from({ length: 64 }, () => 0.8 + r() * 0.35)
-    const cells = 8 // cells across the tile (the diagonal wraps on 8, so it tiles)
-    const d = img.data
-    for (let y = 0; y < w; y++)
+export function walnut() {
+  return paint('walnut', 256, 128, (d, w, h) => {
+    const r = rng(29)
+    const warp = field(r, 2, 3)
+    const warp2 = field(r, 5, 6)
+    const pores = field(r, 16, 64)
+    const figure = field(r, 3, 2)
+    const LINES = 7 // grain lines per tile height (an integer: the tile wraps)
+    for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
-        const px = (x / w) * cells
-        const py = (y / w) * cells
-        const qx = px + py
-        const qy = px - py + cells
-        const ix = Math.floor(qx)
-        const iy = Math.floor(qy)
-        const fx = qx - ix
-        const fy = qy - iy
-        const hor = (ix + iy) % 2 === 0
-        const across = hor ? fy : fx
-        const along = hor ? fx : fy
-        const th = (across * 3) % 1
-        const tid = Math.floor(across * 3)
-        const prof = Math.sqrt(Math.max(Math.sin(Math.PI * th), 0))
-        const dive = 0.45 + 0.55 * Math.sin(Math.PI * along)
-        const t = tone[(ix * 3 + iy * 5 + tid * 7) & 63]
-        const v = Math.min(1, prof * dive * t)
+        const u = x / w
+        const v = y / h
+        const t = v * LINES + (warp(u, v) - 0.5) * 2.2 + (warp2(u, v) - 0.5) * 0.5
+        const ring = 0.5 + 0.5 * Math.cos(t * Math.PI * 2)
+        // late wood: a narrow dark band
+        const late = ring * ring * ring * ring * ring * ring
+        const pore = pores(u, v)
+        const fig = figure(u, v)
+        const dark = Math.min(1, late * 0.85 + (pore < 0.3 ? (0.3 - pore) * 1.6 : 0) + (1 - fig) * 0.12)
+        const sheen = Math.max(0, (1 - ring) * 0.5 + (fig - 0.5) * 0.6) * (pore > 0.55 ? 1 : 0.7)
         const i = (y * w + x) * 4
-        d[i] = Math.min(255, base[0] + col[0] * v)
-        d[i + 1] = Math.min(255, base[1] + col[1] * v)
-        d[i + 2] = Math.min(255, base[2] + col[2] * v)
-        d[i + 3] = 255
+        if (dark > sheen * 0.6) {
+          d[i] = 6
+          d[i + 1] = 3
+          d[i + 2] = 1
+          d[i + 3] = Math.round(dark * 70)
+        } else {
+          d[i] = 255
+          d[i + 1] = 214
+          d[i + 2] = 160
+          d[i + 3] = Math.round(Math.min(1, sheen) * 13)
+        }
       }
   })
 }
 
 /**
- * Tolex / road-case pebble grain: a fine pebble (two octaves of value noise,
- * ~2 CSS px pebbles at the intended 64 px tile size) as faint light tops and
- * dark valleys on transparent.
+ * Cream stock: soft mottling and tooth, short pale and dark fibres lying
+ * every which way, and a few specks — an uncoated poster paper. Meant at
+ * 160 x 160 CSS px over #f1e3c6.
  */
-export function tolex(size = 128) {
-  return paint(`tolex-${size}`, size, (img, w) => {
-    const r = rng(41)
-    const d = img.data
-    const field = (g: number) => {
-      const lattice = Array.from({ length: g * g }, () => r())
-      const at = (ix: number, iy: number) => lattice[((iy + g) % g) * g + ((ix + g) % g)]
-      return (x: number, y: number) => {
-        const fx = (x / w) * g
-        const fy = (y / w) * g
-        const ix = Math.floor(fx)
-        const iy = Math.floor(fy)
-        let tx = fx - ix
-        let ty = fy - iy
-        tx = tx * tx * (3 - 2 * tx)
-        ty = ty * ty * (3 - 2 * ty)
-        const a = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * tx
-        const b = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * tx
-        return a + (b - a) * ty
-      }
-    }
-    const fine = field(42)
-    const coarse = field(8)
-    for (let y = 0; y < w; y++)
-      for (let x = 0; x < w; x++) {
-        // pebbles, very gently modulated by a broad field (no visible clouds)
-        const n = fine(x, y) * 0.9 + coarse(x, y) * 0.1
-        const i = (y * w + x) * 4
-        if (n > 0.52) {
-          d[i] = 255
-          d[i + 1] = 238
-          d[i + 2] = 210
-          d[i + 3] = Math.round(Math.min(1, (n - 0.52) * 2.6) * 15)
-        } else {
-          d[i] = d[i + 1] = d[i + 2] = 0
-          d[i + 3] = Math.round(Math.min(1, (0.52 - n) * 2.4) * 28)
+export function paper() {
+  return paint(
+    'paper',
+    160,
+    160,
+    (d, w, h) => {
+      const r = rng(7)
+      const mottle = field(r, 4, 4)
+      const cloud = field(r, 9, 9)
+      const tooth = field(r, 80, 80)
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const u = x / w
+          const v = y / h
+          const m = mottle(u, v) * 0.6 + cloud(u, v) * 0.4
+          const t = tooth(u, v)
+          const i = (y * w + x) * 4
+          // a warm brown at low alpha: broad and very soft, plus a fine tooth
+          d[i] = 128
+          d[i + 1] = 88
+          d[i + 2] = 40
+          d[i + 3] = Math.round(Math.max(0, 4 + (0.55 - m) * 14 + (0.5 - t) * 10))
         }
+    },
+    (g, w, h) => {
+      const r = rng(11)
+      // a fibre, drawn at every wrap so the tile stays seamless
+      const fibre = (x: number, y: number, len: number, a: number, bend: number, style: string, lw: number) => {
+        for (const ox of [-w, 0, w])
+          for (const oy of [-h, 0, h]) {
+            const x0 = x + ox
+            const y0 = y + oy
+            const x1 = x0 + Math.cos(a) * len
+            const y1 = y0 + Math.sin(a) * len
+            const mx = (x0 + x1) / 2 + Math.cos(a + Math.PI / 2) * bend
+            const my = (y0 + y1) / 2 + Math.sin(a + Math.PI / 2) * bend
+            g.beginPath()
+            g.moveTo(x0, y0)
+            g.quadraticCurveTo(mx, my, x1, y1)
+            g.strokeStyle = style
+            g.lineWidth = lw
+            g.stroke()
+          }
       }
-  })
+      g.lineCap = 'round'
+      for (let k = 0; k < 46; k++)
+        fibre(r() * w, r() * h, 4 + r() * 11, r() * Math.PI * 2, (r() - 0.5) * 4, `rgba(255, 252, 242, ${(0.18 + r() * 0.22).toFixed(2)})`, 0.6 + r() * 0.5)
+      for (let k = 0; k < 14; k++)
+        fibre(r() * w, r() * h, 3 + r() * 7, r() * Math.PI * 2, (r() - 0.5) * 3, `rgba(96, 64, 32, ${(0.1 + r() * 0.12).toFixed(2)})`, 0.5)
+      // a few specks
+      for (let k = 0; k < 9; k++) {
+        g.beginPath()
+        g.arc(r() * w, r() * h, 0.4 + r() * 0.5, 0, Math.PI * 2)
+        g.fillStyle = `rgba(62, 40, 22, ${(0.25 + r() * 0.3).toFixed(2)})`
+        g.fill()
+      }
+    },
+  )
 }
 
 /** `url("…")` for CSS, or 'none' when the canvas was blocked. */
 export const cssUrl = (u: string) => (u ? `url("${u}")` : 'none')
 
 /**
- * Publish the tiles as CSS custom properties on :root (--tx-weave-lit,
- * --tx-weave-wheat, --tx-tolex), in a <style> of their own — not on <html>'s
- * inline style, which the hero rewrites with its mark rect.
+ * Publish the tiles as CSS custom properties on :root (--tx-walnut,
+ * --tx-paper), in a <style> of their own — not on <html>'s inline style,
+ * which the hero rewrites with its monogram rect.
  */
-export function publishTextures(which: ('lit' | 'wheat' | 'tolex')[]) {
-  let el = document.getElementById('rf-textures') as HTMLStyleElement | null
+export function publishTextures(which: ('walnut' | 'paper')[]) {
+  let el = document.getElementById('gj-textures') as HTMLStyleElement | null
   if (!el) {
     el = document.createElement('style')
-    el.id = 'rf-textures'
+    el.id = 'gj-textures'
     document.head.appendChild(el)
   }
   const have = el.textContent ?? ''
   let add = ''
   for (const k of which) {
-    const name = k === 'tolex' ? '--tx-tolex' : `--tx-weave-${k}`
+    const name = `--tx-${k}`
     if (have.includes(`${name}:`) || add.includes(`${name}:`)) continue
-    add += `${name}:${cssUrl(k === 'tolex' ? tolex() : weave(k))};`
+    add += `${name}:${cssUrl(k === 'walnut' ? walnut() : paper())};`
   }
   if (add) el.textContent = `${have}:root{${add}}`
 }

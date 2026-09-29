@@ -1,0 +1,447 @@
+/* GEAR · The Rig — chapter-scoped layout (prefix: gr-) */
+
+/* ---------------- the intro: eyebrow + headline, top-left ---------------- */
+.gr-head {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  max-width: min(640px, calc(100vw - 2 * var(--gutter)));
+}
+.gr-h2 {
+  font-size: clamp(1.9rem, 3.5vw, 3.4rem);
+  line-height: 1.02;
+  max-width: 11.5em;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------------- the rig card: bottom-left ---------------- */
+/* All ten pages share one grid cell inside .gr-clip; index.ts glides the
+   clip's height to the page shown (the card grows upward from the bottom
+   band). Opaque walnut plate, no backdrop blur. */
+.gr-card {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  width: min(430px, 35vw);
+  max-height: calc(100% - var(--safe-top) - var(--safe-bottom));
+  display: grid;
+  gap: 12px;
+  padding: 16px 22px 20px;
+  background: rgba(14, 9, 6, 0.93);
+}
+.gr-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.gr-k {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.gr-idx {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--amber-hot);
+  font-variant-numeric: tabular-nums;
+}
+/* a little festoon strand: ten bulbs on a sagging wire, lit up to the item shown */
+.gr-bulbs {
+  position: relative;
+  margin-left: auto;
+  display: flex;
+  gap: 7px;
+  height: 16px;
+  padding: 0 2px;
+}
+.gr-bulbs::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -9px;
+  height: 16px;
+  border-bottom: 1px solid rgba(243, 230, 204, 0.3);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+.gr-bulbs i {
+  position: relative;
+  display: block;
+  width: 6px;
+  height: 8px;
+  border-radius: 50% 50% 46% 46%;
+  /* the sag of the wire: deepest in the middle */
+  transform: translateY(calc((4.5 - (var(--k) - 4.5) * (var(--k) - 4.5) / 4.5) * 1px));
+  background: rgba(243, 230, 204, 0.16);
+  transition:
+    background-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+.gr-bulbs i.is-on {
+  background: #b9772f;
+}
+.gr-bulbs i.is-now {
+  background: #ffd08a;
+  box-shadow: 0 0 9px rgba(255, 176, 80, 0.75);
+}
+
+.gr-clip {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  transition: height 0.32s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.gr-pages {
+  display: grid;
+  align-items: start;
+}
+.gr-page {
+  grid-area: 1 / 1;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+.gr-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variation-settings: 'opsz' 72, 'SOFT' 60;
+  font-size: clamp(1.45rem, 2.1vw, 2.05rem);
+  line-height: 1.04;
+  letter-spacing: -0.012em;
+  color: var(--paper);
+  text-wrap: balance;
+}
+.gr-text {
+  max-width: none;
+}
+.gr-tags {
+  margin-top: 2px;
+}
+
+/* the guitar's spec sheet: seventeen lines, two columns */
+.gr-specs {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  column-count: 2;
+  column-gap: 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--fg-muted);
+}
+.gr-specs li {
+  position: relative;
+  padding: 3px 0 3px 12px;
+  break-inside: avoid;
+}
+.gr-specs li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.78em;
+  width: 5px;
+  height: 1px;
+  background: var(--signal);
+}
+
+/* the tuning: six string names, lit as each one is plucked */
+.gr-notes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gr-note {
+  --hot: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 50px;
+  border-radius: 6px 6px 22px 22px;
+  font-family: var(--font-display);
+  font-weight: 620;
+  font-size: 26px;
+  color: var(--paper);
+  background: rgba(243, 230, 204, 0.06);
+  box-shadow:
+    inset 0 0 0 calc(1px + var(--hot) * 1px) rgba(255, 196, 120, calc(0.22 + var(--hot) * 0.6)),
+    0 0 calc(var(--hot) * 18px) rgba(255, 170, 70, calc(var(--hot) * 0.7));
+  text-shadow: 0 0 calc(var(--hot) * 12px) rgba(255, 190, 110, 0.9);
+}
+
+/* the PA and the pedals */
+.gr-sub {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 460;
+  font-variation-settings: 'opsz' 36, 'SOFT' 80;
+  font-size: clamp(1.02rem, 1.25vw, 1.2rem);
+  line-height: 1.3;
+  color: var(--paper);
+}
+.gr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+.gr-list li {
+  position: relative;
+  padding-left: 16px;
+}
+.gr-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffe2a8 0%, #f2a33a 50%, #a14a14 100%);
+}
+.gr-list--fx li {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+
+/* ---------------- callouts on the guitar: a dark plate behind each label ---------------- */
+.gr-callout .callout-label {
+  white-space: normal;
+  max-width: 180px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  background: rgba(12, 8, 6, 0.86);
+  border: 1px solid rgba(243, 230, 204, 0.16);
+  border-radius: 3px;
+}
+
+/* ---------------- the tuning tags at the nut ---------------- */
+.gr-tune {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.gr-tune-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.gr-tune-svg path {
+  fill: none;
+  stroke: rgba(243, 230, 204, 0.7);
+  stroke-width: 1.2;
+}
+.gr-tune-tag {
+  --hot: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-weight: 640;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--paper);
+  background: rgba(12, 8, 6, 0.9);
+  box-shadow:
+    inset 0 0 0 calc(1px + var(--hot) * 1.5px) rgba(255, 196, 120, calc(0.4 + var(--hot) * 0.6)),
+    0 0 calc(4px + var(--hot) * 22px) rgba(255, 170, 70, calc(0.15 + var(--hot) * 0.75));
+  text-shadow: 0 0 calc(var(--hot) * 12px) rgba(255, 190, 110, 0.95);
+}
+
+/* ---------------- portrait: headline plate on top, the card owns the bottom band ---------------- */
+@media (orientation: portrait) {
+  .gr-head {
+    right: var(--gutter);
+    max-width: 600px;
+    gap: 10px;
+    padding: 16px 18px 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .gr-h2 {
+    font-size: clamp(1.6rem, 6.6vw, 2.6rem);
+  }
+  .gr-card {
+    right: var(--gutter);
+    width: auto;
+    max-width: 600px;
+    padding: 14px 18px 16px;
+    gap: 10px;
+  }
+  .gr-title {
+    font-size: clamp(1.3rem, 5.4vw, 1.9rem);
+  }
+}
+@media (orientation: portrait) and (min-width: 700px) {
+  .gr-head {
+    right: auto;
+    padding: 20px 24px 24px;
+  }
+  .gr-h2 {
+    font-size: clamp(2.2rem, 5.6vw, 3.2rem);
+  }
+  .gr-card {
+    left: 50%;
+    right: auto;
+    width: min(600px, calc(100vw - 2 * var(--gutter)));
+    transform: translateX(-50%);
+  }
+}
+@media (max-width: 1199px) {
+  .gr-callout .callout-label {
+    max-width: 138px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+}
+@media (max-width: 560px) {
+  .gr-specs {
+    font-size: 12px;
+    line-height: 1.3;
+    column-gap: 14px;
+  }
+  .gr-specs li {
+    padding: 2px 0 2px 10px;
+  }
+  .gr-list {
+    font-size: 13px;
+    gap: 5px;
+  }
+  .gr-note {
+    width: 38px;
+    height: 44px;
+    font-size: 22px;
+  }
+  .gr-bulbs {
+    gap: 5px;
+  }
+  .gr-bulbs i {
+    width: 5px;
+    height: 7px;
+  }
+  .gr-callout .callout-label {
+    max-width: 130px;
+    font-size: 10px;
+  }
+  .gr-tune-tag {
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+  }
+}
+@media (max-height: 700px) and (orientation: portrait) {
+  .gr-specs {
+    font-size: 11.5px;
+    line-height: 1.26;
+  }
+  .gr-specs li {
+    padding: 1px 0 1px 10px;
+  }
+  .gr-card {
+    gap: 8px;
+    padding: 12px 16px 14px;
+  }
+  .gr-top {
+    padding-bottom: 8px;
+  }
+}
+
+/* ---------------- short landscape (a phone sideways, 200% zoom) ---------------- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .gr-head {
+    max-width: min(420px, 50vw);
+    gap: 8px;
+    padding: 12px 16px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .gr-h2 {
+    font-size: clamp(1.25rem, 3.4vw, 1.7rem);
+  }
+  .gr-card {
+    width: min(400px, 48vw);
+    padding: 10px 14px 12px;
+    gap: 7px;
+  }
+  .gr-top {
+    padding-bottom: 6px;
+  }
+  .gr-title {
+    font-size: clamp(1.02rem, 2.3vw, 1.3rem);
+  }
+  .gr-page {
+    gap: 6px;
+  }
+  .gr-text {
+    font-size: 12.5px;
+    line-height: 1.42;
+  }
+  .gr-specs {
+    font-size: 10.5px;
+    line-height: 1.22;
+    column-gap: 12px;
+  }
+  .gr-specs li {
+    padding: 1px 0 1px 9px;
+  }
+  .gr-sub {
+    font-size: 0.92rem;
+  }
+  .gr-list {
+    font-size: 11.5px;
+    line-height: 1.32;
+    gap: 3px;
+  }
+  .gr-list--fx li {
+    font-size: 11px;
+  }
+  .gr-note {
+    width: 34px;
+    height: 38px;
+    font-size: 19px;
+  }
+  .gr-tags .hud-tag {
+    padding: 2px 7px;
+  }
+  .gr-callout .callout-label {
+    font-size: 9.5px;
+    max-width: 150px;
+    padding: 3px 6px;
+  }
+  .gr-tune-tag {
+    width: 26px;
+    height: 26px;
+    font-size: 14px;
+  }
+}

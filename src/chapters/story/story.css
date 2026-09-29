@@ -1,0 +1,359 @@
+/* ------------------------------------------------------------------
+   The Case (story) — the headline, then one card per keepsake.
+   Desktop / short landscape: a column on the left, the case to the right.
+   Portrait: a plate in the bottom band, the keepsake framed above it.
+   Intro and card share one grid cell, so the column never jumps; the card
+   eases to the height of the beat on show (index.ts sets it).
+   Every selector is scoped under .stage-story.
+   ------------------------------------------------------------------ */
+
+/* the chrome bands, measured by index.ts to frame the keepsake */
+.stage-story .st-probe {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage-story .st-copy {
+  position: absolute;
+  left: calc(var(--gutter) + clamp(0px, 1.4vw, 24px));
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: min(480px, 36vw);
+  display: grid;
+  align-content: center;
+}
+.stage-story .st-copy > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+/* ---------------- intro ---------------- */
+
+.stage-story .st-intro {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: clamp(14px, 2.2vh, 22px);
+  visibility: hidden;
+  transition: visibility 0s linear 0.3s;
+}
+.stage-story .st-intro.is-on {
+  visibility: visible;
+  transition-delay: 0s;
+}
+/* a soft pool of shadow behind the headline */
+.stage-story .st-intro::before {
+  content: '';
+  position: absolute;
+  left: -20%;
+  right: -24%;
+  top: -30%;
+  bottom: -30%;
+  background: radial-gradient(closest-side, rgba(8, 5, 4, 0.72), rgba(8, 5, 4, 0));
+  pointer-events: none;
+  z-index: -1;
+}
+.stage-story .st-eyebrow,
+.stage-story .st-infl {
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+.stage-story .st-intro.is-on .st-eyebrow,
+.stage-story .st-intro.is-on .st-infl {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.7s ease 0.05s,
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.05s;
+}
+.stage-story .st-intro.is-on .st-infl {
+  transition-delay: 0.35s;
+}
+.stage-story .st-title {
+  font-size: clamp(2.4rem, 4.5vw, 4.5rem);
+  max-width: 9.5em;
+}
+.stage-story .st-infl {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+.stage-story .st-infl .hud-label {
+  margin: 0;
+}
+.stage-story .st-infl .hud-tag {
+  background: rgba(12, 8, 6, 0.8);
+}
+
+/* ---------------- the keepsake card ---------------- */
+
+.stage-story .st-card {
+  align-self: center;
+  padding: clamp(20px, 2.6vh, 28px) clamp(20px, 2vw, 30px) clamp(16px, 2.2vh, 22px);
+  background: rgba(14, 9, 6, 0.9);
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  visibility: hidden;
+  transition:
+    opacity 0.3s ease,
+    transform 0.4s ease,
+    visibility 0s linear 0.3s;
+}
+.stage-story .st-card.is-on {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity 0.45s ease,
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 0s;
+}
+
+/* the beats share one box that eases to the height of the one on show; the
+   old beat fades in ~0.2 s, the new one comes in once it's gone (never two
+   texts on top of each other; words back within ~0.5 s) */
+.stage-story .st-stack {
+  position: relative;
+  transition: height 0.42s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.stage-story .st-fig {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  opacity: 0;
+  transform: translate3d(0, 5px, 0);
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s ease,
+    visibility 0s linear 0.22s;
+}
+.stage-story .st-fig.is-on {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity 0.34s ease 0.18s,
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.18s,
+    visibility 0s linear 0s;
+}
+
+/* NN / 09 · the keepsake */
+.stage-story .st-idx {
+  margin: 0 0 clamp(8px, 1.3vh, 12px);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.stage-story .st-idx::before {
+  content: '';
+  width: 20px;
+  height: 1px;
+  background: var(--bulb-grad);
+}
+.stage-story .st-n {
+  color: var(--fg);
+}
+.stage-story .st-thing {
+  color: var(--signal);
+}
+.stage-story .st-thing::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--fg-muted);
+}
+
+/* when (a lit figure), where (mono caps) */
+.stage-story .st-when {
+  margin: 0;
+  font-size: clamp(2.3rem, 3.5vw, 3.4rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.stage-story .st-where {
+  margin: clamp(6px, 1vh, 10px) 0 clamp(12px, 1.8vh, 18px);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg);
+  line-height: 1.5;
+}
+.stage-story .st-text {
+  max-width: none;
+  color: rgba(244, 232, 210, 0.86);
+  text-wrap: pretty;
+}
+.stage-story .st-cont::before {
+  content: '…';
+}
+.stage-story .st-more::after {
+  content: '…';
+}
+.stage-story .st-quote {
+  margin: clamp(12px, 1.8vh, 16px) 0 0;
+  font-size: clamp(1.3rem, 2vw, 1.85rem);
+  color: var(--amber-hot);
+  /* hang the opening mark in the margin */
+  text-indent: -0.42em;
+}
+
+/* the nine beats as a row of lamps: the one on show lit */
+.stage-story .st-dots {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: clamp(16px, 2.2vh, 22px);
+  padding-top: clamp(12px, 1.6vh, 16px);
+  border-top: 1px solid var(--line);
+  max-width: 220px;
+}
+.stage-story .st-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(244, 232, 210, 0.2);
+  transition:
+    background-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+.stage-story .st-dot.is-past {
+  background: rgba(234, 166, 78, 0.5);
+}
+.stage-story .st-dot.is-on {
+  background: radial-gradient(circle at 35% 35%, #ffe2a8 0%, #f2a33a 50%, #a14a14 100%);
+  box-shadow: 0 0 10px rgba(242, 163, 58, 0.75);
+}
+
+/* ---------------- portrait: the keepsake above, a plate in the bottom band ---------------- */
+
+@media (max-aspect-ratio: 1/1) {
+  .stage-story .st-copy {
+    left: var(--gutter);
+    right: var(--gutter);
+    top: auto;
+    width: auto;
+    max-width: 620px;
+    margin: 0 auto;
+    align-content: end;
+  }
+  .stage-story .st-intro {
+    align-content: end;
+    gap: 12px;
+    padding: 0 4px 4px;
+  }
+  .stage-story .st-intro::before {
+    left: -10%;
+    right: -10%;
+    top: -36%;
+    bottom: -20%;
+  }
+  .stage-story .st-title {
+    font-size: clamp(2.2rem, 10.4vw, 4.2rem);
+  }
+  .stage-story .st-card {
+    align-self: end;
+    padding: 16px 18px 14px;
+  }
+  .stage-story .st-when {
+    font-size: clamp(1.9rem, 8.6vw, 2.8rem);
+  }
+  .stage-story .st-where {
+    font-size: 11px;
+    margin: 4px 0 10px;
+  }
+  .stage-story .st-text {
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .stage-story .st-quote {
+    font-size: clamp(1.12rem, 5vw, 1.5rem);
+    margin-top: 10px;
+  }
+  .stage-story .st-dots {
+    margin-top: 12px;
+    padding-top: 10px;
+    max-width: 180px;
+  }
+}
+
+/* small phones: tighter still */
+@media (max-aspect-ratio: 1/1) and (max-height: 700px) {
+  .stage-story .st-title {
+    font-size: clamp(2rem, 9.4vw, 3.4rem);
+  }
+  .stage-story .st-idx {
+    margin-bottom: 6px;
+  }
+  .stage-story .st-when {
+    font-size: clamp(1.6rem, 7.4vw, 2.2rem);
+  }
+  .stage-story .st-text {
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  .stage-story .st-quote {
+    font-size: 1.1rem;
+    margin-top: 8px;
+  }
+  .stage-story .st-dots {
+    display: none;
+  }
+}
+
+/* ---------------- short landscape (phones sideways, 200% zoom) ---------------- */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .stage-story .st-copy {
+    left: var(--gutter);
+    width: min(430px, 47vw);
+  }
+  .stage-story .st-intro {
+    gap: 10px;
+  }
+  .stage-story .st-title {
+    font-size: clamp(1.7rem, 4.6vw, 2.5rem);
+  }
+  .stage-story .st-infl .hud-tag {
+    padding: 3px 7px;
+  }
+  .stage-story .st-card {
+    padding: 12px 16px 12px;
+  }
+  .stage-story .st-idx {
+    margin-bottom: 4px;
+  }
+  .stage-story .st-when {
+    font-size: clamp(1.4rem, 3.6vw, 1.9rem);
+  }
+  .stage-story .st-where {
+    font-size: 10.5px;
+    margin: 2px 0 6px;
+  }
+  .stage-story .st-text {
+    font-size: 13px;
+    line-height: 1.42;
+  }
+  .stage-story .st-quote {
+    font-size: 1.02rem;
+    margin-top: 6px;
+  }
+  .stage-story .st-dots {
+    display: none;
+  }
+}

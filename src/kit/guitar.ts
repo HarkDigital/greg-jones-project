@@ -164,7 +164,7 @@ const NOISE_GLSL = /* glsl */ `
 
 /** The spruce top: grain, silk, rosette, binding; gloss that follows `finish`. */
 function topMaterial(tone: 'natural' | 'aged') {
-  const mat = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.03 })
+  const mat = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.06 })
   const uniforms = {
     uSpruce: { value: new THREE.Color(tone === 'aged' ? '#dcaa66' : '#e8c890') },
     uLate: { value: new THREE.Color(tone === 'aged' ? '#a8703a' : '#b98a52') },
@@ -249,7 +249,7 @@ function topMaterial(tone: 'natural' | 'aged') {
 
 /** Sapele back and sides: a warm red-brown with a chatoyant ribbon stripe; black binding bands. */
 function sapeleMaterial(opts: { bands: boolean }) {
-  const mat = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.05 })
+  const mat = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.1 })
   const uniforms = { uFinish: { value: 1 } }
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, uniforms)
@@ -321,22 +321,41 @@ function tortoiseMap() {
   })
 }
 
-/** The headstock monogram: "GJP" in cream, drawn once. */
+/**
+ * The headstock monogram: "GJP" in cream (Fraunces italic). One texture for
+ * every guitar; drawn now and REDRAWN once the face has loaded, so a chapter
+ * that builds before the fonts arrive never bakes a fallback serif into it.
+ */
+let monogram: THREE.CanvasTexture | null = null
 function monogramMap() {
-  return tile(
-    'gjp-monogram',
-    512,
-    256,
-    (g, w, h) => {
-      g.clearRect(0, 0, w, h)
-      g.fillStyle = '#efe4c8'
-      g.textAlign = 'center'
-      g.textBaseline = 'middle'
-      g.font = FONT.displayItalic(150, 640)
-      g.fillText('GJP', w / 2, h * 0.5)
-    },
-    { repeat: false },
-  )
+  if (monogram) return monogram
+  const c = document.createElement('canvas')
+  c.width = 512
+  c.height = 256
+  const draw = () => {
+    const g = c.getContext('2d')!
+    g.clearRect(0, 0, c.width, c.height)
+    g.fillStyle = '#efe4c8'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.font = FONT.displayItalic(150, 640)
+    g.fillText('GJP', c.width / 2, c.height * 0.5)
+  }
+  draw()
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 4
+  monogram = tex
+  if (document.fonts?.load) {
+    document.fonts
+      .load(FONT.displayItalic(150, 640))
+      .then(() => {
+        draw()
+        tex.needsUpdate = true
+      })
+      .catch(() => {})
+  }
+  return tex
 }
 
 /* ---------------------------------------------------------------- build */
@@ -479,11 +498,12 @@ export function buildGuitar(opts: GuitarOptions = {}): Guitar {
     )
     edgeRing.position.set(SOUNDHOLE.x, SOUNDHOLE.y, -0.013)
     body.add(edgeRing)
-    const inside = new THREE.Mesh(
-      new THREE.CircleGeometry(SOUNDHOLE_R * 1.02, 48),
-      new THREE.MeshStandardMaterial({ color: '#1c0e07', roughness: 0.9 }),
-    )
-    inside.position.set(SOUNDHOLE.x, SOUNDHOLE.y, -depthAt(SOUNDHOLE.x) + 0.04)
+    // the dark interior: a floor under the whole body (the back and sides are
+    // one-sided, so an oblique look through the hole would otherwise see the stage)
+    const floorShape = new THREE.Shape(outline.map(p => p.clone().multiplyScalar(0.97)))
+    const inside = new THREE.Mesh(new THREE.ShapeGeometry(floorShape, 1), new THREE.MeshStandardMaterial({ color: '#241308', roughness: 0.92 }))
+    inside.name = 'interior'
+    inside.position.z = -0.8
     body.add(inside)
     // two braces glimpsed through the hole
     const brace = new THREE.MeshStandardMaterial({ color: '#8c6236', roughness: 0.85 })
@@ -610,14 +630,16 @@ export function buildGuitar(opts: GuitarOptions = {}): Guitar {
       p.setXYZ(i, x, p.getY(i) * boardW(x), BOARD_TOP - 0.03 + p.getZ(i))
     }
     g.computeVertexNormals()
-    const m = new THREE.Mesh(g, richlite(0.5))
+    const board = richlite(0.5)
+    board.envMapIntensity = 0.3
+    const m = new THREE.Mesh(g, board)
     m.receiveShadow = true
     neck.add(m)
   }
   // frets: nickel half-rounds
   const fretGeo = new THREE.CylinderGeometry(0.012, 0.012, 1, 10, 1, false, 0, Math.PI)
   fretGeo.rotateY(-Math.PI / 2)
-  const frets = new THREE.InstancedMesh(fretGeo, new THREE.MeshStandardMaterial({ color: '#d8d3c8', metalness: 1, roughness: 0.16 }), FRETS)
+  const frets = new THREE.InstancedMesh(fretGeo, new THREE.MeshStandardMaterial({ color: '#d8d3c8', metalness: 1, roughness: 0.16, envMapIntensity: 0.45 }), FRETS)
   {
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
@@ -675,7 +697,9 @@ export function buildGuitar(opts: GuitarOptions = {}): Guitar {
     hs.closePath()
     const g = new THREE.ExtrudeGeometry(hs, { depth: 0.14, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2, curveSegments: 1 })
     g.translate(0, 0, -0.14)
-    const face = new THREE.Mesh(g, [richlite(0.3), new THREE.MeshPhysicalMaterial({ color: '#7a4424', roughness: 0.5, clearcoat: 0.3 })])
+    // satin black: a gloss face mirrors the lamp and the room's overhead light into a cream sheet
+    const faceMat = new THREE.MeshPhysicalMaterial({ color: '#141211', roughness: 0.42, clearcoat: 0.18, clearcoatRoughness: 0.3, envMapIntensity: 0.3 })
+    const face = new THREE.Mesh(g, [faceMat, new THREE.MeshPhysicalMaterial({ color: '#7a4424', roughness: 0.5, clearcoat: 0.3 })])
     face.castShadow = true
     face.receiveShadow = true
     headstock.add(face)
@@ -702,7 +726,8 @@ export function buildGuitar(opts: GuitarOptions = {}): Guitar {
     const housing = new RoundedBoxGeometry(0.2, 0.2, 0.13, 3, 0.05)
     const shaft = new THREE.CylinderGeometry(0.016, 0.016, 0.18, 8)
     const btn = new THREE.SphereGeometry(0.12, 18, 12)
-    btn.scale(1, 0.34, 0.82)
+    // a paddle: its flat faces contain the shaft, parallel to the headstock face
+    btn.scale(1, 0.8, 0.36)
     for (let k = 0; k < 6; k++) {
       const side = k < 3 ? 1 : -1
       const u = [0.52, 0.98, 1.44][k % 3]

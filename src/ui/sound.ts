@@ -3,41 +3,53 @@ import type { EngineState } from '../core/Engine'
 import { storeKey } from './prefs'
 
 /*
- * RIFF sound: a tube amp on a dark stage between songs (WebAudio only, no files).
+ * GREG JONES PROJECT sound: an acoustic guitar in a small warm room after
+ * dark (WebAudio only, no files).
  *
- *   hum      the amp idling: 60 Hz mains hum and its harmonics (120, 180, 240,
- *            300 Hz, the ones small speakers actually play), breathing very
- *            slowly, plus a thread of tube hiss — barely there. Each chapter
- *            sets how much the amp hums (Up to Eleven cooks a little hotter,
- *            The Workbench is almost silent); scroll speed lifts the hiss a
- *            touch, like the volume knob creeping up.
- *   strings  KARPLUS-STRONG plucked strings: a noise burst (low-passed and
- *            comb-filtered for the pick position) circulating in a tuned
- *            delay loop with a fractional-delay all-pass, decaying to -60 dB
- *            in a set time. Rendered once per note into an AudioBuffer
- *            (cached, ~1 ms each), then played through the AMP: a soft tanh
- *            waveshaper (tube warmth, not distortion), a 1x12 cab voicing
- *            (high-pass 90 Hz, a low-pass around 4.6 kHz with a little
- *            presence) and a short generated SPRING REVERB (a flutter of
- *            ~31 ms round trips in a decaying wash).
- *   blip(i)  plucks note i of E minor pentatonic from E4 (E G A B D, up the
- *            neck): nav, toggles, the menu.
- *   cut()    a soft POWER-CHORD STRUM (root, fifth, octave; low to high going
- *            forward, high to low going back) on the next chapter's root — E,
- *            G, A, B, D, A, E — and a low CAB THUMP (a sine dropping 72 → 44 Hz
- *            with a felt-soft click), rate-limited to one per ~1.1 s so a fast
- *            scroll through several chapters plays one chord, not a flam.
+ *   room     the room tone: a breath of air — soft, dark, band-limited noise,
+ *            breathing very slowly, barely there. Each chapter sets how much
+ *            (the emptied room at Last Call is the most present); scroll
+ *            speed stirs it a touch.
+ *   strings  KARPLUS-STRONG steel strings: a pick-shaped noise burst
+ *            (low-passed for the pick's brightness, comb-filtered for where
+ *            along the string it was picked, with a tiny pick tick)
+ *            circulating in a delay loop of one period — a light one-zero
+ *            loop filter keeps the steel's shimmer, a fractional all-pass
+ *            keeps it in tune — rendered as TWO slightly detuned
+ *            polarizations (a quicker and a longer decay: the bloom and
+ *            gentle beating of a real string) into a cached AudioBuffer
+ *            (a few ms each). Unplugged — no distortion, no speaker: the voices go
+ *            through the BODY — the air resonance (~100 Hz), the top's main
+ *            mode (~205 Hz), a little mud taken out around 560 Hz, a touch of
+ *            pick presence, a soft top end — then a short generated ROOM
+ *            reverb (early reflections off close walls, a warm ~1.2 s tail).
+ *   tuning   DADGBD. blip(i) plucks note i of D major pentatonic from D4
+ *            (D E F♯ A B, up the neck): nav, toggles, the menu.
+ *   cut()    a soft open-DADGBD STRUM (D2 A2 D3 G3 B3 D4) — a down-strum
+ *            going forward, an up-strum going back — rate-limited to one
+ *            per ~1.2 s so a fast scroll through several chapters plays one
+ *            chord, not a flam.
  *   tone()   a pure sine a chapter may ask for (also via 'hark:tone' events).
- *   Chapters may also dispatch window events: 'hark:pluck' {i?, midi?, level?},
- *   'hark:strum' {root?, level?, up?} (e.g. the hero's first chord) and
- *   'hark:sfx' {kind: 'plug' | 'detent', n?} (services: the jack, the dial).
+ *   Chapters may also dispatch window events:
+ *     'hark:pluck' {midi?, i?, level?}   one string (the hero's tuning:
+ *                                        D2=38 A2=45 D3=50 G3=55 B3=59 D4=62);
+ *                                        i = a pentatonic step when no midi
+ *     'hark:strum' {root?, level?, up?}  the open DADGBD chord (root moves the
+ *                                        whole shape, like a capo: root 38 = open)
+ *     'hark:sfx'   {kind, level?}        small room sounds: 'knock' (a knuckle
+ *                                        on the guitar's top), 'click' / 'detent'
+ *                                        / 'switch' / 'latch' / 'plug' (a small
+ *                                        mechanical click), 'capo' (a capo's
+ *                                        clamp), 'peg' (a tuning peg's tick),
+ *                                        'tape' (a tape transport's clunk);
+ *                                        unknown kinds play a soft click
  *
- * CPU: the beds are a handful of always-running nodes; a pluck is one
+ * CPU: the room bed is a handful of always-running nodes; a pluck is one
  * AudioBufferSourceNode; buffers are rendered on first use (and the common
  * ones in idle slices after the sound is switched on); update() only touches
  * gains ~8×/s. Off by default. Sound only ever starts from a real gesture:
  * the toggle's own click / tap / Enter / Space. A remembered "on"
- * (localStorage, per concept) waits for the first real activation (a click or
+ * (localStorage, per site) waits for the first real activation (a click or
  * tap, or Enter / Space on a control; never Tab, arrows or scrolling). Faded
  * out and suspended while the tab is hidden. On iOS the audio session is set
  * to "playback" so the silent switch doesn't swallow it. Levels stay low,
@@ -61,26 +73,29 @@ const ACTIVATE_KEYS = new Set(['Enter', ' ', 'Spacebar'])
 const CONTROL = 'a[href], button, [role="button"], [role="switch"], summary, input, select, textarea'
 
 /* levels (linear gain, before the master) */
-const MASTER_LEVEL = 0.55
-const HUM_LEVEL = 0.0034
-const HISS_LEVEL = 0.0014
-const BLIP_LEVEL = 0.075
+const MASTER_LEVEL = 0.6
+const ROOM_LEVEL = 0.006
+const BLIP_LEVEL = 0.1
+const PLUCK_LEVEL = 0.12
 const STRUM_LEVEL = 0.07
-const THUMP_LEVEL = 0.12
-const SPRING_SEND = 0.2
+const SFX_LEVEL = 0.1
+const REVERB_SEND = 0.24
 const TONE_MAX = 0.03
 
-/** E minor pentatonic (semitones above E) */
-const PENTA = [0, 3, 5, 7, 10]
-/** the power chord's root for each chapter (MIDI): E2 G2 A2 B2 D2 A2 E2 */
-const ROOT: Record<string, number> = { hero: 40, work: 43, services: 45, voices: 47, shield: 38, process: 45, contact: 40 }
-/** how much the amp hums in each chapter */
-const HUM: Record<string, number> = { hero: 1, work: 0.9, services: 1.2, voices: 0.8, shield: 1.15, process: 0.6, contact: 0.85 }
-/** a chapter must hold this long before the hum follows it */
+/** D major pentatonic (semitones above D): D E F♯ A B */
+const PENTA = [0, 2, 4, 7, 9]
+/** blips start on D4 */
+const BLIP_ROOT = 62
+/** Greg's tuning, low string first (MIDI): D2 A2 D3 G3 B3 D4 */
+export const OPEN_DADGBD = [38, 45, 50, 55, 59, 62]
+/** how present the room tone is in each chapter */
+const ROOM: Record<string, number> = { hero: 1, listen: 0.8, watch: 0.9, story: 0.75, band: 1.05, gear: 0.85, contact: 1.25 }
+/** a chapter must hold this long before the room follows it */
 const SETTLE_S = 0.7
-const CUT_GAP_S = 1.1
+const CUT_GAP_S = 1.2
 const BLIP_GAP_S = 0.07
-const MAX_BUFFERS = 40
+const PLUCK_GAP_S = 0.045
+const MAX_BUFFERS = 48
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12)
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
@@ -95,10 +110,185 @@ function setAudioSession(type: string) {
   }
 }
 
+/** a small seeded PRNG so a note sounds the same every time it's rendered */
+function seeded(seed: number) {
+  let s = seed >>> 0 || 1
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 4294967296
+  }
+}
+
+/**
+ * One polarization of a Karplus-Strong steel string into `out` (added in).
+ * `S` is the loop's one-zero weight (0.5 = the classic, darkest; lower keeps
+ * more of the steel's highs), `cents` a small detune.
+ */
+function ksInto(out: Float32Array, sr: number, f: number, t60: number, exc: Float32Array, S: number, cents: number, gain: number) {
+  const fr = f * Math.pow(2, cents / 1200)
+  const period = sr / fr
+  // the one-zero filter delays S samples; the all-pass takes the fraction
+  const loop = period - S
+  const ni = Math.max(2, Math.floor(loop - 0.1))
+  const frac = loop - ni
+  const c = (1 - frac) / (1 + frac)
+  // per-trip loss so the fundamental falls 60 dB in t60 (|H(f)| of the one-zero folded in)
+  const w = (2 * Math.PI * fr) / sr
+  const mag = Math.sqrt((1 - S) * (1 - S) + S * S + 2 * S * (1 - S) * Math.cos(w))
+  const g = Math.min(0.99995, Math.pow(10, -3 / (t60 * fr)) / Math.max(0.5, mag))
+  const len = out.length
+  const y = new Float32Array(len)
+  const n0 = Math.min(ni, exc.length)
+  let apIn = 0
+  let apOut = 0
+  for (let i = 0; i < len; i++) {
+    const d1 = i >= ni ? y[i - ni] : 0
+    const d2 = i >= ni + 1 ? y[i - ni - 1] : 0
+    const v = g * ((1 - S) * d1 + S * d2)
+    const ap = c * v + apIn - c * apOut
+    apIn = v
+    apOut = ap
+    y[i] = (i < n0 ? exc[i] : 0) + ap
+    out[i] += y[i] * gain
+  }
+}
+
+/**
+ * A steel string, plucked: `midi`, seconds to -60 dB, pick brightness 0..1.
+ * Two polarizations (a quicker bloom and a longer ring, a hair apart in
+ * pitch), a pick-shaped burst and a tiny pick tick. Peak-normalized to 0.9.
+ * Pure (no AudioContext): exported for the offline checks.
+ */
+export function renderString(sr: number, midi: number, t60: number, bright: number) {
+  const f = mtof(midi)
+  const len = Math.ceil(sr * Math.min(4.6, t60 * 1.05 + 0.2))
+  const out = new Float32Array(len)
+  const r = seeded(midi * 131 + Math.round(bright * 97) + Math.round(t60 * 10))
+  const n = Math.max(2, Math.floor(sr / f))
+  // the pick: a noise burst, low-passed (a softer pick is darker) …
+  const exc = new Float32Array(n)
+  let lp = 0
+  const a = 0.16 + 0.74 * clamp01(bright)
+  for (let i = 0; i < n; i++) {
+    lp += a * (r() * 2 - 1 - lp)
+    exc[i] = lp
+  }
+  // … comb-filtered for where along the string it was picked (~1/6 from the bridge) …
+  const pp = Math.max(1, Math.round(n * 0.16))
+  for (let i = n - 1; i >= pp; i--) exc[i] -= exc[i - pp]
+  // … and without DC (no thump from the loop)
+  let mean = 0
+  for (let i = 0; i < n; i++) mean += exc[i]
+  mean /= n
+  for (let i = 0; i < n; i++) exc[i] -= mean
+  // a treble string makes many more trips a second: a lighter loop filter keeps its steel shimmer
+  const S = midi < 50 ? 0.34 : midi < 58 ? 0.28 : 0.22
+  ksInto(out, sr, f, t60 * 0.55, exc, S, -0.7, 0.62)
+  ksInto(out, sr, f, t60 * 1.15, exc, S + 0.04, 0.45, 0.45)
+  // the pick's tick on steel: 1.5 ms of bright noise
+  const tick = Math.floor(sr * 0.0015)
+  let hp = 0
+  let prev = 0
+  for (let i = 0; i < tick && i < len; i++) {
+    const x = r() * 2 - 1
+    hp = 0.6 * (hp + x - prev)
+    prev = x
+    out[i] += hp * 0.18 * (1 - i / tick) * (0.4 + clamp01(bright))
+  }
+  let peak = 0
+  for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(out[i]))
+  const norm = peak > 0 ? 0.9 / peak : 1
+  // a 2 ms fade in (no click from the burst's first sample) and 60 ms out
+  const fin = Math.floor(sr * 0.002)
+  const fade = Math.floor(sr * 0.06)
+  for (let i = 0; i < len; i++) {
+    const e = (i < fin ? i / fin : 1) * (i > len - fade ? (len - i) / fade : 1)
+    out[i] *= norm * e
+  }
+  return out
+}
+
+/**
+ * The guitar's BODY and the ROOM, built on any context (the live one, or an
+ * OfflineAudioContext for checks): returns the input to play strings into.
+ */
+export function buildVoiceChain(ctx: BaseAudioContext, out: AudioNode) {
+  const input = ctx.createGain()
+  input.gain.value = 1
+  const node = (type: BiquadFilterType, freq: number, q: number, gain = 0) => {
+    const f = ctx.createBiquadFilter()
+    f.type = type
+    f.frequency.value = freq
+    f.Q.value = q
+    f.gain.value = gain
+    return f
+  }
+  // the body: low guard, air resonance, the top's main mode, less mud, pick presence, a soft top
+  const chain = [
+    node('highpass', 62, 0.7),
+    node('peaking', 101, 3.2, 4.5),
+    node('peaking', 204, 2.4, 3.2),
+    node('peaking', 560, 1.1, -2.2),
+    node('peaking', 2500, 0.9, 1.8),
+    node('highshelf', 7000, 0.7, -2),
+    node('lowpass', 10500, 0.5),
+  ]
+  const body = ctx.createGain()
+  body.gain.value = 1.4
+  let at: AudioNode = input
+  for (const f of chain) at = at.connect(f)
+  at.connect(body).connect(out)
+  // the room: a short stereo reverb
+  const room = ctx.createConvolver()
+  room.buffer = roomIR(ctx)
+  const send = ctx.createGain()
+  send.gain.value = REVERB_SEND
+  body.connect(send).connect(room).connect(out)
+  return input
+}
+
+/** a small warm room: early reflections off near walls, then a darkening ~1.2 s tail (stereo) */
+function roomIR(ctx: BaseAudioContext) {
+  const sr = ctx.sampleRate
+  const len = Math.floor(sr * 1.5)
+  const ir = ctx.createBuffer(2, len, sr)
+  const r = seeded(1977)
+  const pre = Math.floor(sr * 0.011)
+  // early reflections (the same pattern, a little different per ear)
+  const taps = [
+    [0.0, 0.62],
+    [0.0043, 0.44],
+    [0.0091, 0.38],
+    [0.0137, 0.3],
+    [0.0192, 0.27],
+    [0.0254, 0.2],
+    [0.0318, 0.16],
+    [0.0405, 0.12],
+  ]
+  for (let c = 0; c < 2; c++) {
+    const d = ir.getChannelData(c)
+    let lp = 0
+    for (let i = 0; i < len; i++) {
+      const t = i / sr
+      // the tail darkens as it decays (the room's soft furnishings)
+      const k = 0.35 + 0.55 * Math.min(1, t / 0.9)
+      lp = lp * k + (r() * 2 - 1) * (1 - k)
+      const onset = i < pre ? 0 : Math.min(1, (i - pre) / (sr * 0.03))
+      d[i] = lp * Math.exp(-t / 0.3) * 0.55 * onset
+    }
+    for (const [dt, a] of taps) {
+      const at = pre + Math.floor(sr * (dt + (c ? 0.0017 : 0) + r() * 0.0008))
+      if (at < len) d[at] += a * (r() < 0.5 ? -1 : 1) * 0.6
+      if (at + 1 < len) d[at + 1] += a * 0.25
+    }
+  }
+  return ir
+}
+
 interface PluckOpts {
   /** seconds to -60 dB */
   t60?: number
-  /** pick brightness 0..1 (the excitation's low-pass) */
+  /** pick brightness 0..1 */
   bright?: number
   pan?: number
 }
@@ -109,9 +299,8 @@ export class Sound {
 
   private ctx: AudioContext | null = null
   private master!: GainNode
-  private amp!: GainNode
-  private hum!: GainNode
-  private hiss!: GainNode
+  private voice!: AudioNode
+  private room!: GainNode
   private fx!: GainNode
   private toneOsc: OscillatorNode | null = null
   private toneGain: GainNode | null = null
@@ -120,11 +309,12 @@ export class Sound {
 
   private chapter = 'hero'
   private slotIds: string[] = []
-  private humKey = ''
+  private roomKey = ''
   private pendingKey = 'hero'
   private pendingSince = 0
   private lastCut = -10
   private lastBlip = -10
+  private lastPluck = -10
   private lastSpeedAt = -10
   private speed = 0
   private suspendTimer = 0
@@ -151,33 +341,29 @@ export class Sound {
       const d = (e as CustomEvent<{ i?: number; midi?: number; level?: number }>).detail ?? {}
       const ctx = this.live()
       if (!ctx) return
-      const midi = typeof d.midi === 'number' ? d.midi : this.scaleNote(d.i ?? 0)
-      this.pluck(ctx.currentTime + 0.005, midi, BLIP_LEVEL * clamp01(d.level ?? 1), { t60: 1.8, bright: 0.5, pan: rand(-0.3, 0.3) })
+      const now = ctx.currentTime
+      // a burst of plucks (a fast scrub through the tuning) plays as a few, not a buzz
+      if (now - this.lastPluck < PLUCK_GAP_S) return
+      this.lastPluck = now
+      const midi = typeof d.midi === 'number' && Number.isFinite(d.midi) ? Math.max(28, Math.min(88, Math.round(d.midi))) : this.scaleNote(d.i ?? 0)
+      this.pluck(now + 0.005, midi, PLUCK_LEVEL * clamp01(d.level ?? 1), {
+        t60: this.ringFor(midi),
+        bright: 0.5,
+        pan: Math.max(-0.35, Math.min(0.35, (midi - 50) / 40)),
+      })
     })
     window.addEventListener('hark:strum', e => {
       const d = (e as CustomEvent<{ root?: number; level?: number; up?: boolean }>).detail ?? {}
       const ctx = this.live()
       if (!ctx) return
-      const root = typeof d.root === 'number' ? d.root : (ROOT[this.chapter] ?? 40)
-      this.strum(ctx.currentTime + 0.01, root, STRUM_LEVEL * clamp01(d.level ?? 1), !!d.up, 2.4)
+      const shift = typeof d.root === 'number' && Number.isFinite(d.root) ? Math.round(d.root) - OPEN_DADGBD[0] : 0
+      this.strum(ctx.currentTime + 0.01, shift, STRUM_LEVEL * clamp01(d.level ?? 1), !!d.up, 3)
     })
-    // services: the jack seating ('plug') and the dial's detents ('detent', n 1..11)
     window.addEventListener('hark:sfx', e => {
-      const d = (e as CustomEvent<{ kind?: string; n?: number }>).detail ?? {}
+      const d = (e as CustomEvent<{ kind?: string; level?: number }>).detail ?? {}
       const ctx = this.live()
       if (!ctx) return
-      const now = ctx.currentTime + 0.005
-      if (d.kind === 'plug') {
-        this.knock(ctx, now, 0.7, 1800)
-        // the hum swells as the cable seats, then settles
-        this.hum.gain.cancelScheduledValues(now)
-        this.hum.gain.setTargetAtTime(HUM_LEVEL * 3.2, now, 0.02)
-        this.hum.gain.setTargetAtTime(HUM_LEVEL, now + 0.35, 0.4)
-      } else if (d.kind === 'detent') {
-        const n = Math.max(1, Math.min(11, d.n ?? 1))
-        this.knock(ctx, now, 0.28, 3200)
-        this.pluck(now + 0.02, this.scaleNote(n - 1), BLIP_LEVEL * 0.45, { t60: 1.1, bright: 0.45, pan: rand(-0.2, 0.2) })
-      }
+      this.sfx(ctx, ctx.currentTime + 0.005, String(d.kind ?? 'click'), clamp01(d.level ?? 1))
     })
     // the static page took over (no GPU): silence, without touching the stored choice
     window.addEventListener('hark:fallback', () => this.setEnabled(false))
@@ -199,7 +385,7 @@ export class Sound {
     }
   }
 
-  /** Follow the story: each chapter sets the hum (once it holds); scroll speed lifts the hiss. */
+  /** Follow the story: each chapter sets the room tone (once it holds); scroll speed stirs the air. */
   update(frame: Frame, state: EngineState) {
     const slot = state.slots[state.index]
     if (slot) this.chapter = slot.def.id
@@ -211,19 +397,19 @@ export class Sound {
       this.pendingKey = this.chapter
       this.pendingSince = now
     }
-    if (this.pendingKey !== this.humKey && now - this.pendingSince > SETTLE_S) this.setHum(this.pendingKey, ctx, 1.2)
-    // ≈ 8×/s: a little more hiss while the stage slides past
+    if (this.pendingKey !== this.roomKey && now - this.pendingSince > SETTLE_S) this.setRoom(this.pendingKey, ctx, 1.4)
+    // ≈ 8×/s: a little more air while the story slides past
     if (now - this.lastSpeedAt > 0.12) {
       this.lastSpeedAt = now
       const s = clamp01(Math.abs(frame.velocity || 0) / 3)
       if (Math.abs(s - this.speed) > 0.04) {
         this.speed = s
-        this.hiss.gain.setTargetAtTime(HISS_LEVEL * (1 + 1.6 * s), now, s > 0.1 ? 0.15 : 0.7)
+        this.room.gain.setTargetAtTime(ROOM_LEVEL * (ROOM[this.roomKey] ?? 1) * (1 + 0.8 * s), now, s > 0.1 ? 0.2 : 0.8)
       }
     }
   }
 
-  /** A chapter cut: a soft power-chord strum on the next chapter's root and a low cab thump. */
+  /** A chapter cut: a soft open-DADGBD strum (down going forward, up going back). */
   cut(from: number, to: number) {
     const ctx = this.live()
     if (!ctx) return
@@ -233,22 +419,20 @@ export class Sound {
       this.pendingKey = toId
       this.pendingSince = now
     }
-    // a fast run of cuts: one chord, then the amp waits for the story to settle
+    // a fast run of cuts: one chord, then the guitar waits for the story to settle
     if (now - this.lastCut < CUT_GAP_S) return
     this.lastCut = now
-    const root = ROOT[toId ?? ''] ?? 40
-    this.strum(now + 0.012, root, STRUM_LEVEL, to < from, 1.5)
-    this.thump(ctx, now)
+    this.strum(now + 0.012, 0, STRUM_LEVEL, to < from, 2.8)
   }
 
-  /** A plucked note (nav, toggles): note i of E minor pentatonic from E4. No-op while off. */
+  /** A plucked note (nav, toggles): note i of D major pentatonic from D4. No-op while off. */
   blip(pitch = 0) {
     const ctx = this.live()
     if (!ctx) return
     const now = ctx.currentTime
     if (now - this.lastBlip < BLIP_GAP_S) return
     this.lastBlip = now
-    this.pluck(now + 0.004, this.scaleNote(pitch), BLIP_LEVEL, { t60: 1.3, bright: 0.55, pan: rand(-0.25, 0.25) })
+    this.pluck(now + 0.004, this.scaleNote(pitch), BLIP_LEVEL, { t60: 1.6, bright: 0.55, pan: rand(-0.2, 0.2) })
   }
 
   /** A pure sine a chapter may ask for: level 0..1 (0 releases it). */
@@ -261,8 +445,13 @@ export class Sound {
   /* ------------------------------------------------------------ internals */
 
   private scaleNote(i: number) {
-    const p = Math.max(0, Math.min(14, Math.round(i)))
-    return 64 + PENTA[p % 5] + 12 * Math.floor(p / 5)
+    const p = Math.max(0, Math.min(14, Math.round(Number.isFinite(i) ? i : 0)))
+    return BLIP_ROOT + PENTA[p % 5] + 12 * Math.floor(p / 5)
+  }
+
+  /** low strings ring longer */
+  private ringFor(midi: number) {
+    return Math.max(1.8, Math.min(4, 4 - (midi - 38) * 0.075))
   }
 
   private live() {
@@ -279,7 +468,7 @@ export class Sound {
       try {
         this.ensureGraph()
       } catch (err) {
-        console.warn('[hark] audio unavailable', err)
+        console.warn('[gjp] audio unavailable', err)
       }
     }
     this.applyRunning(true)
@@ -301,14 +490,14 @@ export class Sound {
           const t = ctx.currentTime
           this.master.gain.cancelScheduledValues(t)
           this.master.gain.setValueAtTime(this.master.gain.value, t)
-          this.master.gain.setTargetAtTime(MASTER_LEVEL, t, 0.35)
+          this.master.gain.setTargetAtTime(MASTER_LEVEL, t, 0.3)
           this.pendingKey = this.chapter
-          this.humKey = ''
-          this.setHum(this.chapter, ctx, 0.8)
+          this.roomKey = ''
+          this.setRoom(this.chapter, ctx, 0.9)
           this.applyTone()
           this.warmUp()
-          // the amp comes on: one open note, the root of the chapter you're in
-          if (greet) this.pluck(t + 0.03, (ROOT[this.chapter] ?? 40) + 12, BLIP_LEVEL, { t60: 2.2, bright: 0.45 })
+          // the sound comes on: one open string rings, the D in the middle of the neck
+          if (greet) this.pluck(t + 0.03, 50, BLIP_LEVEL, { t60: 3, bright: 0.45 })
         })
         .catch(() => this.waitForGesture())
     } else {
@@ -378,119 +567,75 @@ export class Sound {
     this.master.gain.value = 0
     const hp = ctx.createBiquadFilter()
     hp.type = 'highpass'
-    hp.frequency.value = 38
+    hp.frequency.value = 36
     hp.Q.value = 0.5
     const comp = ctx.createDynamicsCompressor()
-    comp.threshold.value = -22
-    comp.knee.value = 16
-    comp.ratio.value = 3
-    comp.attack.value = 0.008
-    comp.release.value = 0.4
+    comp.threshold.value = -20
+    comp.knee.value = 14
+    comp.ratio.value = 2.6
+    comp.attack.value = 0.006
+    comp.release.value = 0.35
     this.master.connect(hp).connect(comp).connect(ctx.destination)
 
-    // THE AMP: soft tube warmth → a 1x12 cab voicing → out, plus the spring
-    this.amp = ctx.createGain()
-    this.amp.gain.value = 1.4
-    const shaper = ctx.createWaveShaper()
-    const n = 1024
-    const curve = new Float32Array(n)
-    const k = 1.7
-    const norm = Math.tanh(k)
-    for (let i = 0; i < n; i++) {
-      const x = (i / (n - 1)) * 2 - 1
-      // a touch asymmetric, like a single-ended stage
-      curve[i] = Math.tanh(k * (x + 0.04 * x * x)) / norm
+    // THE GUITAR: strings → body → room
+    this.voice = buildVoiceChain(ctx, this.master)
+
+    // THE ROOM TONE: soft, dark, band-limited air, breathing slowly
+    const noise = ctx.createBuffer(2, Math.floor(sr * 4), sr)
+    for (let c = 0; c < 2; c++) {
+      const nd = noise.getChannelData(c)
+      // brown-ish: integrated white noise, leaky
+      let b = 0
+      for (let i = 0; i < nd.length; i++) {
+        b = b * 0.985 + (Math.random() * 2 - 1) * 0.12
+        nd[i] = b
+      }
+      // seamless loop: fade the seam
+      const x = Math.floor(sr * 0.05)
+      for (let i = 0; i < x; i++) {
+        const k = i / x
+        nd[i] = nd[i] * k + nd[nd.length - x + i] * (1 - k)
+      }
     }
-    shaper.curve = curve
-    shaper.oversample = '2x'
-    const cabHp = ctx.createBiquadFilter()
-    cabHp.type = 'highpass'
-    cabHp.frequency.value = 90
-    cabHp.Q.value = 0.6
-    const cabLp = ctx.createBiquadFilter()
-    cabLp.type = 'lowpass'
-    cabLp.frequency.value = 4600
-    cabLp.Q.value = 0.8
-    const presence = ctx.createBiquadFilter()
-    presence.type = 'peaking'
-    presence.frequency.value = 1800
-    presence.Q.value = 0.9
-    presence.gain.value = 2.5
-    const post = ctx.createGain()
-    post.gain.value = 0.72
-    this.amp.connect(shaper).connect(cabHp).connect(presence).connect(cabLp).connect(post).connect(this.master)
-    const spring = ctx.createConvolver()
-    spring.buffer = this.springIR(ctx)
-    const send = ctx.createGain()
-    send.gain.value = SPRING_SEND
-    post.connect(send).connect(spring).connect(this.master)
+    this.room = ctx.createGain()
+    this.room.gain.value = 0
+    const roomSrc = ctx.createBufferSource()
+    roomSrc.buffer = noise
+    roomSrc.loop = true
+    roomSrc.loopEnd = noise.duration - 0.05
+    const roomHp = ctx.createBiquadFilter()
+    roomHp.type = 'highpass'
+    roomHp.frequency.value = 70
+    roomHp.Q.value = 0.5
+    const roomLp = ctx.createBiquadFilter()
+    roomLp.type = 'lowpass'
+    roomLp.frequency.value = 820
+    roomLp.Q.value = 0.4
+    const breath = ctx.createGain()
+    breath.gain.value = 1
+    roomSrc.connect(roomHp).connect(roomLp).connect(breath).connect(this.room).connect(this.master)
+    roomSrc.start(0, rand(0, 2))
+    const lfo = ctx.createOscillator()
+    lfo.frequency.value = 0.055
+    const lfoAmt = ctx.createGain()
+    lfoAmt.gain.value = 0.25
+    lfo.connect(lfoAmt).connect(breath.gain)
+    lfo.start()
 
-    // HUM: 60 Hz and its harmonics, low-passed, breathing slowly
-    this.hum = ctx.createGain()
-    this.hum.gain.value = 0
-    const humLp = ctx.createBiquadFilter()
-    humLp.type = 'lowpass'
-    humLp.frequency.value = 420
-    humLp.Q.value = 0.4
-    const humAmp = ctx.createGain()
-    humAmp.gain.value = 1
-    humLp.connect(humAmp).connect(this.hum).connect(this.master)
-    for (const [hz, a] of [
-      [60, 0.7],
-      [120, 1],
-      [180, 0.55],
-      [240, 0.3],
-      [300, 0.16],
-    ] as const) {
-      const o = ctx.createOscillator()
-      o.frequency.value = hz
-      const g = ctx.createGain()
-      g.gain.value = a
-      o.connect(g).connect(humLp)
-      o.start()
-    }
-    const breathe = ctx.createOscillator()
-    breathe.frequency.value = 0.07
-    const breatheAmt = ctx.createGain()
-    breatheAmt.gain.value = 0.22
-    breathe.connect(breatheAmt).connect(humAmp.gain)
-    breathe.start()
-
-    // HISS: the tubes' own noise, a thin high band
-    const noise = ctx.createBuffer(1, Math.floor(sr * 2), sr)
-    const nd = noise.getChannelData(0)
-    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
-    this.hiss = ctx.createGain()
-    this.hiss.gain.value = HISS_LEVEL
-    const hissSrc = ctx.createBufferSource()
-    hissSrc.buffer = noise
-    hissSrc.loop = true
-    const hissHp = ctx.createBiquadFilter()
-    hissHp.type = 'highpass'
-    hissHp.frequency.value = 2600
-    const hissLp = ctx.createBiquadFilter()
-    hissLp.type = 'lowpass'
-    hissLp.frequency.value = 8500
-    hissSrc.connect(hissHp).connect(hissLp).connect(this.hiss).connect(this.master)
-    hissSrc.start(0, rand(0, 1.5))
-
-    // the cab's felt-soft click (a short low-passed noise burst) for the thump
-    const cl = Math.floor(sr * 0.02)
+    // a small mechanical click (a short, band-passed noise burst) for the sfx
+    const cl = Math.floor(sr * 0.018)
     this.click = ctx.createBuffer(1, cl, sr)
     const cd = this.click.getChannelData(0)
     let lp = 0
     for (let i = 0; i < cl; i++) {
-      lp += 0.18 * (Math.random() * 2 - 1 - lp)
-      cd[i] = lp * Math.pow(1 - i / cl, 3) * 2.2
+      lp += 0.35 * (Math.random() * 2 - 1 - lp)
+      cd[i] = lp * Math.pow(1 - i / cl, 4) * 2
     }
 
-    // thumps and tones go straight out
+    // sfx go through the room (not the body), a touch dry
     this.fx = ctx.createGain()
     this.fx.gain.value = 1
-    const fxLp = ctx.createBiquadFilter()
-    fxLp.type = 'lowpass'
-    fxLp.frequency.value = 220
-    this.fx.connect(fxLp).connect(this.master)
+    this.fx.connect(this.master)
 
     this.toneOsc = ctx.createOscillator()
     this.toneOsc.type = 'sine'
@@ -501,55 +646,18 @@ export class Sound {
     this.toneOsc.start()
   }
 
-  /** a short spring reverb: a flutter of ~31 ms round trips in a darkening, decaying wash (stereo) */
-  private springIR(ctx: AudioContext) {
-    const sr = ctx.sampleRate
-    const len = Math.floor(sr * 2.1)
-    const ir = ctx.createBuffer(2, len, sr)
-    for (let c = 0; c < 2; c++) {
-      const d = ir.getChannelData(c)
-      const period = Math.floor(sr * (0.031 + c * 0.0023))
-      const burst = Math.floor(sr * 0.005)
-      // the wash
-      let lp = 0
-      let hpPrev = 0
-      let hpOut = 0
-      for (let i = 0; i < len; i++) {
-        const t = i / sr
-        const k = 0.5 + 0.4 * Math.min(1, t / 1.6)
-        lp = lp * k + (Math.random() * 2 - 1) * (1 - k)
-        // a gentle high-pass so the spring never booms
-        hpOut = 0.97 * (hpOut + lp - hpPrev)
-        hpPrev = lp
-        d[i] = hpOut * Math.exp(-t / 0.5) * 0.7 * (i < sr * 0.004 ? i / (sr * 0.004) : 1)
-      }
-      // the flutter: each round trip comes back smeared and softer
-      for (let r = 1; r * period < len; r++) {
-        const amp = 0.5 * Math.pow(0.72, r)
-        const at = r * period
-        const smear = burst * (1 + r * 0.6)
-        for (let j = 0; j < smear && at + j < len; j++) d[at + j] += (Math.random() * 2 - 1) * amp * (1 - j / smear)
-      }
-    }
-    return ir
+  /** the room tone for a chapter */
+  private setRoom(id: string, ctx: AudioContext, tc: number) {
+    this.roomKey = id
+    this.room.gain.setTargetAtTime(ROOM_LEVEL * (ROOM[id] ?? 1), ctx.currentTime, tc)
   }
 
-  /** the hum for a chapter */
-  private setHum(id: string, ctx: AudioContext, tc: number) {
-    this.humKey = id
-    const now = ctx.currentTime
-    this.hum.gain.setTargetAtTime(HUM_LEVEL * (HUM[id] ?? 1), now, tc)
-  }
-
-  /** after the amp comes on, render the notes it will need first, in idle slices */
+  /** after the sound comes on, render the notes it will need first, in idle slices */
   private warmUp() {
     clearTimeout(this.warmTimer)
     const todo: [number, number, number][] = []
-    for (let i = 0; i < 8; i++) todo.push([this.scaleNote(i), 1.3, 0.55])
-    for (const id of Object.keys(ROOT)) {
-      const r = ROOT[id]
-      for (const m of [r, r + 7, r + 12]) todo.push([m, 1.5, 0.38])
-    }
+    for (let i = 0; i < 8; i++) todo.push([this.scaleNote(i), 1.6, 0.55])
+    for (const m of OPEN_DADGBD) todo.push([m, 2.8, 0.42], [m, this.ringFor(m), 0.5])
     const step = () => {
       const ctx = this.ctx
       if (!ctx || !this.enabled) return
@@ -563,58 +671,13 @@ export class Sound {
 
   /* ------------------------------------------------------------ voices */
 
-  /**
-   * A Karplus-Strong string, rendered once into a buffer: a pick-shaped noise
-   * burst circulating in a delay loop of one period (an averaging low-pass +
-   * a fractional all-pass keep it in tune), losing just enough per trip to
-   * fall 60 dB in t60 seconds.
-   */
   private buffer(ctx: AudioContext, midi: number, t60: number, bright: number) {
-    const key = `${midi}|${t60}|${bright}`
+    const key = `${midi}|${t60.toFixed(2)}|${bright.toFixed(2)}`
     const hit = this.buffers.get(key)
     if (hit) return hit
-    const sr = ctx.sampleRate
-    const f = mtof(midi)
-    const period = sr / f
-    const loop = period - 0.5 // the averaging filter adds half a sample
-    const ni = Math.max(2, Math.floor(loop - 0.1))
-    const frac = loop - ni
-    const c = (1 - frac) / (1 + frac)
-    const g = Math.pow(10, -3 / (t60 * f))
-    const len = Math.ceil(sr * Math.min(3.4, t60 * 1.05 + 0.15))
-    const buf = ctx.createBuffer(1, len, sr)
-    const y = buf.getChannelData(0)
-    // the pick: a noise burst, low-passed (softer picks are darker) …
-    const exc = new Float32Array(ni)
-    let lp = 0
-    const a = 0.12 + 0.8 * clamp01(bright)
-    for (let i = 0; i < ni; i++) {
-      lp += a * (Math.random() * 2 - 1 - lp)
-      exc[i] = lp
-    }
-    // … and comb-filtered for where along the string it was picked
-    const pp = Math.max(1, Math.round(ni * 0.14))
-    for (let i = ni - 1; i >= pp; i--) exc[i] -= exc[i - pp]
-    let mean = 0
-    for (let i = 0; i < ni; i++) mean += exc[i]
-    mean /= ni
-    for (let i = 0; i < ni; i++) exc[i] -= mean
-    let apIn = 0
-    let apOut = 0
-    for (let i = 0; i < len; i++) {
-      const d1 = i >= ni ? y[i - ni] : 0
-      const d2 = i >= ni + 1 ? y[i - ni - 1] : 0
-      const v = g * 0.5 * (d1 + d2)
-      const ap = c * v + apIn - c * apOut
-      apIn = v
-      apOut = ap
-      y[i] = (i < ni ? exc[i] : 0) + ap
-    }
-    let peak = 0
-    for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(y[i]))
-    const norm = peak > 0 ? 0.9 / peak : 1
-    const fade = Math.floor(sr * 0.04)
-    for (let i = 0; i < len; i++) y[i] *= norm * (i > len - fade ? (len - i) / fade : 1)
+    const data = renderString(ctx.sampleRate, midi, t60, bright)
+    const buf = ctx.createBuffer(1, data.length, ctx.sampleRate)
+    buf.getChannelData(0).set(data)
     if (this.buffers.size >= MAX_BUFFERS) {
       const first = this.buffers.keys().next().value
       if (first !== undefined) this.buffers.delete(first)
@@ -623,10 +686,10 @@ export class Sound {
     return buf
   }
 
-  /** play one string through the amp */
-  private pluck(t: number, midi: number, level: number, { t60 = 1.6, bright = 0.5, pan = 0 }: PluckOpts = {}) {
+  /** one string through the body */
+  private pluck(t: number, midi: number, level: number, { t60 = 2, bright = 0.5, pan = 0 }: PluckOpts = {}) {
     const ctx = this.ctx
-    if (!ctx) return
+    if (!ctx || level <= 0) return
     const src = ctx.createBufferSource()
     src.buffer = this.buffer(ctx, midi, t60, bright)
     const g = ctx.createGain()
@@ -635,54 +698,78 @@ export class Sound {
     if (pan && typeof ctx.createStereoPanner === 'function') {
       const p = ctx.createStereoPanner()
       p.pan.value = pan
-      g.connect(p).connect(this.amp)
-    } else g.connect(this.amp)
+      g.connect(p).connect(this.voice)
+    } else g.connect(this.voice)
     src.start(t)
   }
 
-  /** a power chord (root, fifth, octave), strummed ~24 ms a string */
-  private strum(t: number, root: number, level: number, up: boolean, t60: number) {
-    const notes = [root, root + 7, root + 12]
+  /** the open DADGBD chord (shifted `shift` semitones, like a capo), strummed down or up */
+  private strum(t: number, shift: number, level: number, up: boolean, t60: number) {
+    const notes = OPEN_DADGBD.map(m => m + shift)
     if (up) notes.reverse()
-    notes.forEach((m, i) => this.pluck(t + i * 0.024, m, level * (i === 0 ? 1 : 0.85), { t60, bright: 0.38, pan: (i - 1) * 0.12 }))
+    let at = t
+    notes.forEach((m, i) => {
+      // bass strings a touch fuller; a down-strum lands a little harder at the start, an up-strum at the top
+      const w = 0.78 + 0.22 * (up ? i / 5 : 1 - i / 5)
+      this.pluck(at, m, level * w, { t60: t60 * (m < 50 ? 1.15 : 1), bright: up ? 0.46 : 0.4, pan: ((m - shift - 50) / 12) * 0.14 })
+      at += 0.017 + Math.random() * 0.007
+    })
   }
 
-  /** the cab's cone pushing air: a falling low sine and a soft click */
-  private thump(ctx: AudioContext, t: number) {
-    const o = ctx.createOscillator()
-    o.type = 'sine'
-    o.frequency.setValueAtTime(72, t)
-    o.frequency.exponentialRampToValueAtTime(44, t + 0.16)
-    const g = ctx.createGain()
-    g.gain.setValueAtTime(0.0001, t)
-    g.gain.exponentialRampToValueAtTime(THUMP_LEVEL, t + 0.008)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34)
-    o.connect(g).connect(this.fx)
-    o.start(t)
-    o.stop(t + 0.36)
-    if (this.click) {
-      const s = ctx.createBufferSource()
-      s.buffer = this.click
-      const cg = ctx.createGain()
-      cg.gain.value = 0.35
-      s.connect(cg).connect(this.fx)
-      s.start(t)
+  /** small sounds of the room (see the header) */
+  private sfx(ctx: AudioContext, t: number, kind: string, level: number) {
+    const L = SFX_LEVEL * level
+    switch (kind) {
+      case 'knock':
+        // a knuckle on the top: a short low sine through the body, and a soft tap
+        this.thud(ctx, t, 118, 0.09, L * 1.2, this.voice)
+        this.clack(ctx, t, L * 0.5, 900, 0.8)
+        break
+      case 'capo':
+        this.clack(ctx, t, L, 2400, 1.25)
+        this.clack(ctx, t + 0.055, L * 0.7, 1800, 1.1)
+        break
+      case 'peg':
+        this.clack(ctx, t, L * 0.4, 3600, 1.8)
+        break
+      case 'tape':
+        this.thud(ctx, t, 72, 0.12, L * 1.1, this.fx)
+        this.clack(ctx, t + 0.008, L * 0.8, 1200, 0.9)
+        break
+      default:
+        // click / detent / switch / latch / plug and anything unknown
+        this.clack(ctx, t, L * 0.8, 2000, 1.4)
     }
   }
 
-  /** a small mechanical click (knob detent, jack seating): the click burst, high-passed */
-  private knock(ctx: AudioContext, t: number, level: number, hp: number) {
+  /** a short mechanical click: the click burst, high-passed */
+  private clack(ctx: AudioContext, t: number, level: number, hp: number, rate: number) {
     if (!this.click) return
     const s = ctx.createBufferSource()
     s.buffer = this.click
-    s.playbackRate.value = 1.6
+    s.playbackRate.value = rate
     const f = ctx.createBiquadFilter()
     f.type = 'highpass'
     f.frequency.value = hp
     const g = ctx.createGain()
     g.gain.value = level
-    s.connect(f).connect(g).connect(this.master)
+    s.connect(f).connect(g).connect(this.fx)
     s.start(t)
+  }
+
+  /** a soft low thud (a falling sine) */
+  private thud(ctx: AudioContext, t: number, hz: number, dur: number, level: number, dest: AudioNode) {
+    const o = ctx.createOscillator()
+    o.type = 'sine'
+    o.frequency.setValueAtTime(hz, t)
+    o.frequency.exponentialRampToValueAtTime(hz * 0.7, t + dur)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), t + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 2.2)
+    o.connect(g).connect(dest)
+    o.start(t)
+    o.stop(t + dur * 2.4)
   }
 
   private applyTone() {

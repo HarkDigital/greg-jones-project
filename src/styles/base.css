@@ -708,3 +708,33 @@ html.motion-off .rise .rise-w > span {
     --safe-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ---------------- LO-FI over the DOM ----------------
+   The canvas gets its tape look in post (src/core/post.ts); this puts the
+   same texture over the copy, panels and chrome so nothing reads too clean:
+   a static film-noise tile + faint 2 px scanlines. No blend modes (a blend
+   over the animating canvas costs a full composite every frame), never
+   intercepts the pointer, sits under the focus pills and the loader. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0 1px, rgba(0, 0, 0, 0) 1px 2px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.42  0 0 0 0 0.34  0 0 0 1.6 -0.55'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 100% 2px, 160px 160px;
+  opacity: 0.55;
+}
+/* a faint chroma fringe on the display type, like a worn dub of a title card */
+.hud-title,
+.hud-h2 {
+  text-shadow:
+    -0.035em 0 0 rgba(255, 90, 70, 0.2),
+    0.035em 0 0 rgba(90, 170, 255, 0.14);
+}
+.hud-title em,
+.hud-h2 em {
+  text-shadow: none;
+}

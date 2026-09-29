@@ -89,6 +89,8 @@ const BLIP_ROOT = 62
 /** Greg's tuning, low string first (MIDI): D2 A2 D3 G3 B3 D4 */
 export const OPEN_DADGBD = [38, 45, 50, 55, 59, 62]
 /** how present the room tone is in each chapter */
+/** the lo-fi tape bed (hiss + crackle), linear gain before the master */
+const TAPE_BED = 0.05
 const ROOM: Record<string, number> = { hero: 1, listen: 0.8, watch: 0.9, story: 0.75, gear: 0.85, contact: 1.25 }
 /** a chapter must hold this long before the room follows it */
 const SETTLE_S = 0.7
@@ -575,7 +577,79 @@ export class Sound {
     comp.ratio.value = 2.6
     comp.attack.value = 0.006
     comp.release.value = 0.35
-    this.master.connect(hp).connect(comp).connect(ctx.destination)
+    // LO-FI TAPE: master → wow & flutter (a modulated short delay) → a rolled-off
+    // top (a worn cassette) → soft saturation → rumble guard → compression → out
+    const wowDelay = ctx.createDelay(0.05)
+    wowDelay.delayTime.value = 0.012
+    const wow = ctx.createOscillator()
+    wow.frequency.value = 0.55
+    const wowAmt = ctx.createGain()
+    wowAmt.gain.value = 0.0016
+    wow.connect(wowAmt).connect(wowDelay.delayTime)
+    const flutter = ctx.createOscillator()
+    flutter.frequency.value = 6.8
+    const flutterAmt = ctx.createGain()
+    flutterAmt.gain.value = 0.00022
+    flutter.connect(flutterAmt).connect(wowDelay.delayTime)
+    wow.start()
+    flutter.start()
+    const tapeLp = ctx.createBiquadFilter()
+    tapeLp.type = 'lowpass'
+    tapeLp.frequency.value = 3600
+    tapeLp.Q.value = 0.45
+    const warm = ctx.createBiquadFilter()
+    warm.type = 'lowshelf'
+    warm.frequency.value = 180
+    warm.gain.value = 2.5
+    const sat = ctx.createWaveShaper()
+    {
+      const n = 1024
+      const curve = new Float32Array(n)
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * 2 - 1
+        curve[i] = Math.tanh(x * 1.6) / Math.tanh(1.6)
+      }
+      sat.curve = curve
+      sat.oversample = '2x'
+    }
+    this.master.connect(wowDelay).connect(tapeLp).connect(warm).connect(sat).connect(hp).connect(comp).connect(ctx.destination)
+
+    // the tape bed: hiss and the odd crackle, very quiet, under everything
+    {
+      const len = Math.floor(sr * 6)
+      const bed = ctx.createBuffer(2, len, sr)
+      for (let c = 0; c < 2; c++) {
+        const d = bed.getChannelData(c)
+        let pink = 0
+        for (let i = 0; i < len; i++) {
+          pink = pink * 0.96 + (Math.random() * 2 - 1) * 0.04
+          d[i] = pink * 0.35
+        }
+        const clicks = Math.floor(6 * 9)
+        for (let k = 0; k < clicks; k++) {
+          const at = Math.floor(Math.random() * (len - 64))
+          const amp = (0.25 + Math.random() * 0.75) * (Math.random() < 0.5 ? -1 : 1)
+          const w = 6 + Math.floor(Math.random() * 26)
+          for (let j = 0; j < w; j++) d[at + j] += amp * Math.exp(-j / (w * 0.35)) * (j % 2 ? -0.6 : 1)
+        }
+        const x = Math.floor(sr * 0.05)
+        for (let i = 0; i < x; i++) {
+          const kk = i / x
+          d[i] = d[i] * kk + d[len - x + i] * (1 - kk)
+        }
+      }
+      const bedSrc = ctx.createBufferSource()
+      bedSrc.buffer = bed
+      bedSrc.loop = true
+      bedSrc.loopEnd = bed.duration - 0.05
+      const bedHp = ctx.createBiquadFilter()
+      bedHp.type = 'highpass'
+      bedHp.frequency.value = 900
+      const bedGain = ctx.createGain()
+      bedGain.gain.value = TAPE_BED
+      bedSrc.connect(bedHp).connect(bedGain).connect(this.master)
+      bedSrc.start(0, rand(0, 3))
+    }
 
     // THE GUITAR: strings → body → room
     this.voice = buildVoiceChain(ctx, this.master)

@@ -56,6 +56,12 @@ const FinalShader = {
     uGrainSeed: { value: 0 },
     /** scratch seed (jumps every ~0.7 s); < 0 = no scratches (calm) */
     uScratchSeed: { value: -1 },
+    /** 0..1 LO-FI: tape softness, chroma smear, faded grade, halation, scanlines, VHS tracking */
+    uLofi: { value: 1 },
+    /** 0..1 tape motion (wobble, tracking band, head-switch noise); 0 when calm */
+    uTapeMotion: { value: 1 },
+    /** 1/8-res copy of the frame (halation) */
+    tHalo: { value: null as THREE.Texture | null },
     uVignette: { value: 0.55 },
     /** 0..1 wash to white */
     uFlash: { value: 0 },
@@ -81,7 +87,8 @@ const FinalShader = {
     uniform sampler2D tField;
     uniform vec2 uFieldTexel;
     uniform float uTime, uDpr, uTransition, uGlitch, uAberration, uGrain, uVignette, uFlash, uFade, uSpeedDim, uSat, uLift, uWarmth;
-    uniform float uGrit, uGrainSeed, uScratchSeed;
+    uniform float uGrit, uGrainSeed, uScratchSeed, uLofi, uTapeMotion;
+    uniform sampler2D tHalo;
     uniform vec2 uResolution;
     uniform vec3 uCutColor, uFadeColor, uHaze;
     varying vec2 vUv;
@@ -176,12 +183,50 @@ const FinalShader = {
       float push = 0.16 * smoothstep(0.0, 1.0, t) + 0.035 * clamp(uGlitch, 0.0, 1.0);
       vec2 suv = 0.5 + c * (1.0 - push * (1.0 - 0.7 * r * r));
 
+      // TAPE TRANSPORT: a little horizontal wobble per scanline, a slow tracking
+      // band rolling up the frame, head-switching noise along the bottom edge
+      float cpx = max(1.0, uDpr);
+      float oneX = cpx / uResolution.x; // one CSS px, in uv
+      float line = floor(gl_FragCoord.y / (2.0 * cpx));
+      float tm = uTapeMotion * uLofi;
+      float wob = (sin(uv.y * 9.0 + uTime * 1.3) * 0.45 + (hash(vec2(line, uGrainSeed)) - 0.5) * 0.5) * tm;
+      float bandY = fract(uTime * 0.021);
+      float bd = (uv.y - bandY) / 0.012;
+      float band = exp(-bd * bd) * tm;
+      wob += band * (hash(vec2(line, uGrainSeed + 3.0)) - 0.3) * 7.0;
+      float head = (1.0 - smoothstep(0.0, 0.022, uv.y)) * tm;
+      wob += head * head * (9.0 + 6.0 * hash(vec2(line, uGrainSeed + 7.0)));
+      vec2 tuv = suv + vec2(wob * oneX, 0.0);
+
       vec3 col;
+      if (uLofi > 0.001) {
+        // TAPE BANDWIDTH: soft luma (a small 5-tap cross), chroma smeared wide
+        // and trailing to the right (YIQ, like a worn home-video dub)
+        vec2 hx = vec2(oneX * 1.25 * uLofi, 0.0);
+        vec2 hy = vec2(0.0, cpx / uResolution.y * 0.8 * uLofi);
+        vec3 ctr = texture2D(tDiffuse, tuv).rgb;
+        vec3 soft = (ctr * 2.0 + texture2D(tDiffuse, tuv - hx).rgb + texture2D(tDiffuse, tuv + hx).rgb
+          + texture2D(tDiffuse, tuv - hy).rgb + texture2D(tDiffuse, tuv + hy).rgb) / 6.0;
+        vec3 ch = vec3(0.0);
+        for (int i = 0; i < 6; i++) ch += texture2D(tDiffuse, tuv + vec2(oneX * (float(i) * 2.2 - 3.5) * uLofi, 0.0)).rgb;
+        ch /= 6.0;
+        float Y = dot(soft, vec3(0.299, 0.587, 0.114));
+        float I = dot(ch, vec3(0.596, -0.274, -0.322));
+        float Q = dot(ch, vec3(0.211, -0.523, 0.312));
+        // chroma noise: low-frequency colour blotches crawling along the lines
+        vec2 cn = vec2(gl_FragCoord.x / (9.0 * cpx), gl_FragCoord.y / (3.0 * cpx));
+        I += (vnoise(cn + vec2(uGrainSeed * 0.37, 0.0)) - 0.5) * 0.035 * uLofi;
+        Q += (vnoise(cn + vec2(17.0, uGrainSeed * 0.29)) - 0.5) * 0.035 * uLofi;
+        vec3 tape = max(vec3(Y + 0.956 * I + 0.621 * Q, Y - 0.272 * I - 0.647 * Q, Y - 1.106 * I + 1.703 * Q), 0.0);
+        col = mix(ctr, tape, uLofi);
+        // the tracking band and the head switch lose a little signal: noise and a lift
+        float snow = hash(vec2(floor(gl_FragCoord.x / (2.0 * cpx)), line + uGrainSeed));
+        col = mix(col, vec3(snow) * 0.5 + col * 0.6, clamp(band * 0.5 + head * 0.6, 0.0, 0.7));
+      } else col = texture2D(tDiffuse, tuv).rgb;
       if (uAberration > 0.00001) {
-        col.r = texture2D(tDiffuse, suv + c * uAberration).r;
-        col.g = texture2D(tDiffuse, suv).g;
-        col.b = texture2D(tDiffuse, suv - c * uAberration).b;
-      } else col = texture2D(tDiffuse, suv).rgb;
+        col.r = texture2D(tDiffuse, tuv + c * uAberration).r;
+        col.b = texture2D(tDiffuse, tuv - c * uAberration).b;
+      }
 
       col = grade(col);
 
@@ -223,6 +268,26 @@ const FinalShader = {
       col = mix(col, vec3(1.0), clamp(uFlash, 0.0, 1.0));
       float v = 1.0 - smoothstep(0.3, 1.05, length(c * vec2(1.0, 0.92)) * 1.42);
       col *= mix(1.0, 0.42 + 0.58 * v, uVignette);
+
+      // LO-FI GRADE
+      if (uLofi > 0.001) {
+        // halation: the lights bleed a warm glow into the dark around them
+        vec3 hal = texture2D(tHalo, suv).rgb * 0.6 + field(suv) * 0.4;
+        float hl = dot(hal, LUM);
+        col += max(hal - 0.18, 0.0) * vec3(1.0, 0.72, 0.5) * 0.55 * uLofi * smoothstep(0.1, 0.5, hl);
+        // faded print: less saturation, milky lifted blacks with a dusty plum
+        // cast, highlights that never quite reach white
+        float fl = dot(col, LUM);
+        col = mix(col, mix(vec3(fl), col, 0.74), uLofi);
+        vec3 bp = vec3(0.085, 0.066, 0.078) * uLofi;
+        vec3 wp = mix(vec3(1.0), vec3(0.93, 0.89, 0.8), uLofi);
+        col = bp + col * (wp - bp);
+        // a rounder, heavier lens vignette (a cheap camcorder)
+        float lv = 1.0 - smoothstep(0.45, 1.15, length(c * vec2(aspect * 0.85, 1.0)) * 1.25);
+        col *= mix(1.0, 0.68 + 0.32 * lv, uLofi);
+        // scanlines (every 2 CSS px), faint
+        col *= 1.0 - 0.07 * uLofi * (0.5 + 0.5 * cos(gl_FragCoord.y / cpx * 3.14159265));
+      }
       // FILM GRAIN — clumped like real stock (two octaves of noise at ~1.2 and
       // ~2.6 CSS px), a touch of colour in it, strongest in the mids, and some
       // tooth left in the shadows. Re-dealt 24x a second; still when calm.
@@ -282,6 +347,8 @@ export type PostParams = {
   grain: number
   /** 0..1 grit: mottled print density, dust specks, hairline scratches, firmer contrast */
   grit: number
+  /** 0..1 lo-fi: tape softness + chroma smear, faded grade, halation, scanlines, tracking */
+  lofi: number
   vignette: number
   /** the THUMP 0..1: a speaker-cone push (chapters punch it on a downbeat) */
   glitch: number
@@ -308,6 +375,7 @@ export const POST_DEFAULTS: PostParams = {
   aberration: 0,
   grain: 0.12,
   grit: 1,
+  lofi: 1,
   vignette: 0.55,
   glitch: 0,
   flash: 0,
@@ -486,6 +554,7 @@ export class Post {
     this.composer.addPass(this.field)
     this.final = new ShaderPass(FinalShader)
     this.final.uniforms.tField.value = this.field.b.texture
+    this.final.uniforms.tHalo.value = this.field.a.texture
     this.composer.addPass(this.final)
   }
 
@@ -588,6 +657,8 @@ export class Post {
     u.uAberration.value = c.aberration
     u.uGrain.value = c.grain
     u.uGrit.value = c.grit
+    u.uLofi.value = c.lofi
+    u.uTapeMotion.value = this.calm ? 0 : 1
     // grain and dust re-deal at 24 fps; hold still when calm (reduced motion /
     // Motion off) — and frame time itself freezes with Motion off
     u.uGrainSeed.value = this.calm ? 0 : Math.floor(time * 24)
@@ -599,7 +670,8 @@ export class Post {
     u.uSat.value = c.saturation
     u.uLift.value = c.lift
     u.uWarmth.value = c.warmth
-    this.field.active = this.transition > 0.001 || c.glitch > 0.001
+    // the field feeds the lo-fi halation too, so it runs whenever lo-fi is on
+    this.field.active = this.transition > 0.001 || c.glitch > 0.001 || c.lofi > 0.001
     if (this.preRender.length) {
       this.camera.updateMatrixWorld()
       for (const fn of this.preRender) fn(this.renderer, this.scene, this.camera)
